@@ -1,23 +1,68 @@
+
 /**
  * Q&A Controller
  */
-
 const qnaService = require("../services/qnaService");
+const User = require("../models/User");
+const Notification = require("../models/Notification");
 const { sendSuccess, sendError } = require("../utils/response");
 
 class QnAController {
+  // Admin: delete all Q&A and notifications
+  async clearAllQnaAndNotifications(req, res, next) {
+    try {
+      await qnaService.clearAllQnaAndNotifications();
+      sendSuccess(res, { message: "Barcha savol-javoblar va notificationlar o'chirildi" });
+    } catch (err) {
+      next(err);
+    }
+  }
+  // Authenticated user: get their own answers
+  async getUserAnswers(req, res, next) {
+    try {
+      const userId = req.user && req.user._id;
+      if (!userId) return sendError(res, "Foydalanuvchi aniqlanmadi", 401);
+      const items = await qnaService.getAnswersByUserId(userId);
+      sendSuccess(res, { items });
+    } catch (err) {
+      next(err);
+    }
+  }
+  // Anonymous user checks answer by contact (email/phone)
+  async getAnonAnswer(req, res, next) {
+    try {
+      const contact = (req.query.contact || "").trim();
+      if (!contact) {
+        return sendError(res, "Kontakt (email yoki telefon) kerak", 400);
+      }
+      const items = await qnaService.getAnonAnswersByContact(contact);
+      sendSuccess(res, { items });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  // ...existing controller methods...
   async submitQuestion(req, res, next) {
     try {
       const { question, topic, askedName, contact } = req.body;
-      const askedIp =
-        req.headers["x-forwarded-for"] || req.ip || "";
+      const askedIp = req.headers["x-forwarded-for"] || req.ip || "";
+
+      // If user is authenticated, use their _id and email
+      let askedBy = null;
+      let finalContact = contact;
+      if (req.user) {
+        askedBy = req.user._id;
+        if (req.user.email) finalContact = req.user.email;
+      }
 
       const doc = await qnaService.submitQuestion(
         question,
         topic,
         askedName,
-        contact,
-        askedIp.toString()
+        finalContact,
+        askedIp.toString(),
+        askedBy
       );
 
       sendSuccess(
@@ -158,6 +203,21 @@ class QnAController {
       next(err);
     }
   }
+  async notifyAllUsers(req, res) {
+  const { type, title, message } = req.body;
+  // Barcha userlarni toping va notification yarating
+  const users = await User.find({});
+  const notifications = users.map(u => ({
+    user: u._id,
+    type,
+    title,
+    message,
+    createdAt: new Date(),
+    isRead: false,
+  }));
+  await Notification.insertMany(notifications);
+  res.json({ success: true, message: "Broadcast yuborildi" });
 }
+};
 
 module.exports = new QnAController();

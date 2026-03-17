@@ -1,12 +1,41 @@
+
 /**
  * Q&A Service
  */
 
 const Qna = require("../models/Qna");
+const User = require("../models/User");
 const Notification = require("../models/Notification");
-
 class QnAService {
-  async submitQuestion(question, topic, askedName, contact, askedIp) {
+  // Admin: delete all Q&A and notifications
+  async clearAllQnaAndNotifications() {
+    await Qna.deleteMany({});
+    await Notification.deleteMany({});
+  }
+  // Get answers for authenticated user by askedBy
+  async getAnswersByUserId(userId) {
+    if (!userId) return [];
+    const items = await Qna.find({
+      askedBy: userId,
+      status: "answered",
+    })
+      .select("question answer topic answeredAt isPublished status")
+      .sort({ answeredAt: -1 });
+    return items;
+  }
+  // Get answers for anonymous user by contact (email/phone)
+  async getAnonAnswersByContact(contact) {
+    if (!contact) return [];
+    // Only show answered questions, regardless of isPublished
+    const items = await Qna.find({
+      contact,
+      status: "answered",
+    })
+      .select("question answer topic answeredAt isPublished status")
+      .sort({ answeredAt: -1 });
+    return items;
+  }
+  async submitQuestion(question, topic, askedName, contact, askedIp, askedBy) {
     if (!question || typeof question !== "string" || question.trim().length < 5) {
       throw new Error("Savol kamina 5 ta belgi bo'lishi kerak");
     }
@@ -17,6 +46,7 @@ class QnAService {
       askedName: askedName?.trim() || "",
       contact: contact?.trim() || "",
       askedIp: askedIp || "",
+      askedBy: askedBy || null,
     });
 
     return doc;
@@ -87,7 +117,8 @@ class QnAService {
         .skip((page - 1) * limit)
         .limit(limit)
         .populate("askedBy", "name email")
-        .populate("answeredBy", "name email"),
+        .populate("answeredBy", "name email")
+        .select("question answer topic askedName contact status isPublished answeredAt createdAt askedBy answeredBy"),
       Qna.countDocuments(query),
     ]);
 
@@ -173,8 +204,45 @@ class QnAService {
       throw new Error("Savol topilmadi");
     }
 
+    // Delete all notifications related to this question
+    await Notification.deleteMany({
+      message: { $regex: item.question, $options: "i" }
+    });
+
     return item;
   }
+  async notifyAllUsersAboutQna(qna) {
+  const users = await User.find({}, "_id");
+  const notifications = users.map(u => ({
+    userId: u._id,
+    title: "Yangi savol-javob e'lon qilindi",
+    message: `Savol: ${qna.question}\nJavob: ${qna.answer}`,
+    type: "info",
+  }));
+  await Notification.insertMany(notifications);
+}
+async publishQuestion(id, isPublished) {
+  if (typeof isPublished !== "boolean") {
+    throw new Error("isPublished boolean bo'lishi kerak");
+  }
+
+  const item = await Qna.findByIdAndUpdate(
+    id,
+    { isPublished },
+    { returnDocument: "after" }
+  );
+
+  if (!item) {
+    throw new Error("Savol topilmadi");
+  }
+
+  // Yangi: isPublished true bo‘lsa, barcha userga notification
+  if (isPublished) {
+    await this.notifyAllUsersAboutQna(item);
+  }
+
+  return item;
+}
 }
 
 module.exports = new QnAService();
