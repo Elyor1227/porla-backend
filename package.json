@@ -1,11 +1,12 @@
 {
   "name": "backend",
-  "version": "1.0.0",
-  "description": "",
-  "main": "admin.js",
+  "version": "2.0.0",
+  "description": "Porla — Women's Health Education Platform Backend (Production-Ready)",
+  "main": "src/index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node server.js"
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js"
   },
   "keywords": [],
   "author": "",
