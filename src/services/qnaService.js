@@ -215,7 +215,7 @@ class QnAService {
   const users = await User.find({}, "_id");
   const notifications = users.map(u => ({
     userId: u._id,
-    title: "Yangi savol-javob e'lon qilindi",
+    title: "Foydali savol-javob qo'shildi",
     message: `Savol: ${qna.question}\nJavob: ${qna.answer}`,
     type: "info",
   }));

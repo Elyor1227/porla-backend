@@ -21,9 +21,9 @@ class CourseController {
       const result = await courseService.getCourseById(id, req.user);
       sendSuccess(res, result);
     } catch (err) {
-      if (err.isPro) {
-        return sendError(res, err.message, 403, { isPro: true });
-      }
+      // if (err.isPro) {
+      //   return sendError(res, err.message, 403, { isPro: true });
+      // }
       if (err.message.includes("topilmadi")) {
         return sendError(res, err.message, 404);
       }
