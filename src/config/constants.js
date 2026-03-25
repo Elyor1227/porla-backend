@@ -33,7 +33,7 @@ const MESSAGES = {
   
   // Courses
   COURSE_NOT_FOUND: "Kurs topilmadi",
-  COURSE_LOCKED: "Bu kurs Pro foydalanuvchilar uchun",
+  COURSE_LOCKED: "Bu kurs Premium foydalanuvchilar uchun",
   LESSON_NOT_FOUND: "Dars topilmadi",
   
   // Tracker
