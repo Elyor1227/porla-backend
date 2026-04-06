@@ -7,6 +7,12 @@ const User = require("../models/User");
 const Notification = require("../models/Notification");
 const { MESSAGES } = require("../config/constants");
 
+function normalizeEmail(email) {
+  return String(email || "")
+    .trim()
+    .toLowerCase();
+}
+
 class AuthService {
   async register(name, email, password) {
     // Validate input
@@ -18,9 +24,14 @@ class AuthService {
       throw new Error(MESSAGES.PASSWORD_MIN);
     }
 
+    const emailNorm = normalizeEmail(email);
+    if (!emailNorm) {
+      throw new Error(MESSAGES.REQUIRED_FIELDS);
+    }
+
     // Check if email exists
     const existingUser = await User.findOne({
-      email: email.toLowerCase(),
+      email: emailNorm,
     });
     if (existingUser) {
       throw new Error(MESSAGES.EMAIL_EXISTS);
@@ -29,7 +40,7 @@ class AuthService {
     // Create user
     const user = await User.create({
       name,
-      email: email.toLowerCase(),
+      email: emailNorm,
       password,
     });
 
@@ -50,9 +61,14 @@ class AuthService {
       throw new Error("Email va parol talab qilinadi");
     }
 
+    const emailNorm = normalizeEmail(email);
+    if (!emailNorm) {
+      throw new Error("Email va parol talab qilinadi");
+    }
+
     // Find user and include password
     const user = await User.findOne({
-      email: email.toLowerCase(),
+      email: emailNorm,
     }).select("+password");
 
     if (!user || !(await user.comparePassword(password))) {

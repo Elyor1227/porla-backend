@@ -5,6 +5,8 @@
 const Course = require("../models/Course");
 const Lesson = require("../models/Lesson");
 const { MESSAGES } = require("../config/constants");
+const { toClientVideoUrl } = require("../utils/lessonVideo");
+const { deleteStoredVideo } = require("../utils/videoUpload");
 
 class CourseAdminService {
   async getAllCourses() {
@@ -58,6 +60,11 @@ class CourseAdminService {
       throw new Error(MESSAGES.COURSE_NOT_FOUND);
     }
 
+    const lessonDocs = await Lesson.find({ courseId }).select("videoFile");
+    lessonDocs.forEach((l) => {
+      if (l.videoFile) deleteStoredVideo(l.videoFile);
+    });
+
     await Promise.all([
       Course.findByIdAndDelete(courseId),
       Lesson.deleteMany({ courseId }),
@@ -68,10 +75,26 @@ class CourseAdminService {
 
   async getLessons(courseId) {
     const lessons = await Lesson.find({ courseId }).sort("order");
-    return lessons;
+    const cid = courseId.toString();
+    return lessons.map((l) => {
+      const o = l.toObject();
+      return {
+        ...o,
+        videoUrl: toClientVideoUrl(o, cid),
+      };
+    });
   }
 
-  async createLesson(courseId, title, content, videoUrl, duration, order, isPro) {
+  async createLesson(
+    courseId,
+    title,
+    content,
+    videoUrl,
+    duration,
+    order,
+    isPro,
+    videoFile
+  ) {
     if (!title || !content) {
       throw new Error("Sarlavha va mazmun majburiy");
     }
@@ -85,27 +108,52 @@ class CourseAdminService {
       courseId,
       title,
       content,
-      videoUrl: videoUrl || "",
+      videoUrl: videoFile ? "" : videoUrl || "",
+      videoFile: videoFile || "",
       duration: duration || 0,
       order: order || 0,
       isPro: isPro !== undefined ? isPro : course.isPro,
     });
 
-    return lesson;
+    const o = lesson.toObject();
+    return {
+      ...o,
+      videoUrl: toClientVideoUrl(o, courseId.toString()),
+    };
   }
 
   async updateLesson(courseId, lessonId, updates) {
-    const lesson = await Lesson.findOneAndUpdate(
-      { _id: lessonId, courseId },
-      updates,
-      { returnDocument: "after", runValidators: true }
-    );
-
-    if (!lesson) {
+    const existing = await Lesson.findOne({ _id: lessonId, courseId });
+    if (!existing) {
       throw new Error(MESSAGES.LESSON_NOT_FOUND);
     }
 
-    return lesson;
+    const next = { ...updates };
+
+    if (next.videoFile && existing.videoFile && next.videoFile !== existing.videoFile) {
+      deleteStoredVideo(existing.videoFile);
+    }
+
+    if (next.videoFile) {
+      next.videoUrl = "";
+    }
+
+    if (next.videoUrl !== undefined && /^https?:\/\//i.test(String(next.videoUrl).trim())) {
+      if (existing.videoFile) deleteStoredVideo(existing.videoFile);
+      next.videoFile = "";
+    }
+
+    const lesson = await Lesson.findOneAndUpdate(
+      { _id: lessonId, courseId },
+      next,
+      { returnDocument: "after", runValidators: true }
+    );
+
+    const o = lesson.toObject();
+    return {
+      ...o,
+      videoUrl: toClientVideoUrl(o, courseId.toString()),
+    };
   }
 
   async deleteLesson(courseId, lessonId) {
@@ -117,6 +165,8 @@ class CourseAdminService {
     if (!lesson) {
       throw new Error(MESSAGES.LESSON_NOT_FOUND);
     }
+
+    if (lesson.videoFile) deleteStoredVideo(lesson.videoFile);
 
     return lesson;
   }

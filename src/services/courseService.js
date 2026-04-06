@@ -3,9 +3,13 @@
  * Business logic for course operations
  */
 
+const fs = require("fs");
+const path = require("path");
 const Course = require("../models/Course");
 const Lesson = require("../models/Lesson");
 const { MESSAGES } = require("../config/constants");
+const { toClientVideoUrl } = require("../utils/lessonVideo");
+const { getVideoPath } = require("../utils/videoUpload");
 
 class CourseService {
   async getAllCourses(user) {
@@ -55,13 +59,16 @@ class CourseService {
       const obj = l.toObject();
       const isCompleted = completedIds.includes(l._id.toString());
       const isLocked = idx > 0 && !isUserPro;
+      const { videoFile: _vf, ...rest } = obj;
 
       return {
-        ...obj,
+        ...rest,
         isCompleted,
         isLocked,
         content: isLocked ? "" : obj.content,
-        videoUrl: isLocked ? "" : obj.videoUrl,
+        videoUrl: isLocked
+          ? ""
+          : toClientVideoUrl(obj, course._id.toString()),
       };
     });
 
@@ -125,8 +132,15 @@ class CourseService {
         }
       : null;
 
+    const lo = lesson.toObject();
+    const { videoFile: _vf, ...lessonRest } = lo;
+
     return {
-      lesson: { ...lesson.toObject(), isCompleted },
+      lesson: {
+        ...lessonRest,
+        isCompleted,
+        videoUrl: toClientVideoUrl(lo, courseId),
+      },
       navigation: {
         current: idx + 1,
         total: allLessons.length,
@@ -134,6 +148,126 @@ class CourseService {
         nextLesson,
       },
     };
+  }
+
+  async assertLessonVideoAccess(courseId, lessonId, user) {
+    const lesson = await Lesson.findOne({
+      _id: lessonId,
+      courseId: courseId,
+      isActive: true,
+    });
+
+    if (!lesson) {
+      const err = new Error(MESSAGES.LESSON_NOT_FOUND);
+      err.statusCode = 404;
+      throw err;
+    }
+
+    const allLessons = await Lesson.find({
+      courseId: courseId,
+      isActive: true,
+    }).sort("order");
+
+    const idx = allLessons.findIndex(
+      (l) => l._id.toString() === lesson._id.toString()
+    );
+    const isUserPro = user.isPro || user.isAdmin;
+
+    if (idx > 0 && !isUserPro) {
+      const error = new Error(MESSAGES.COURSE_LOCKED);
+      error.isPro = true;
+      error.statusCode = 403;
+      throw error;
+    }
+
+    return lesson;
+  }
+
+  getMimeForVideo(filePath) {
+    const ext = path.extname(filePath).toLowerCase();
+    const map = {
+      ".mp4": "video/mp4",
+      ".webm": "video/webm",
+      ".mov": "video/quicktime",
+      ".m4v": "video/x-m4v",
+    };
+    return map[ext] || "application/octet-stream";
+  }
+
+  /**
+   * Himoyalangan video oqimi (Range qo'llab-quvvatlash, inline yoki ?download=1)
+   */
+  async sendLessonVideo(req, res) {
+    const { courseId, lessonId } = req.params;
+    const lesson = await this.assertLessonVideoAccess(courseId, lessonId, req.user);
+
+    if (!lesson.videoFile) {
+      const err = new Error("Bu dars uchun yuklangan video fayl yo'q");
+      err.statusCode = 404;
+      throw err;
+    }
+
+    const filePath = getVideoPath(lesson.videoFile);
+    if (!filePath || !fs.existsSync(filePath)) {
+      const err = new Error("Video fayl serverda topilmadi");
+      err.statusCode = 404;
+      throw err;
+    }
+
+    const stat = fs.statSync(filePath);
+    const fileSize = stat.size;
+    const mime = this.getMimeForVideo(filePath);
+    const download =
+      req.query.download === "1" || req.query.download === "true";
+    const baseName =
+      lesson.title.replace(/[^\w\s.-]/g, "_").slice(0, 80) +
+      path.extname(filePath);
+    const disposition = download
+      ? `attachment; filename*=UTF-8''${encodeURIComponent(baseName)}`
+      : `inline; filename*=UTF-8''${encodeURIComponent(baseName)}`;
+
+    const range = req.headers.range;
+
+    if (range) {
+      const parts = range.replace(/bytes=/, "").split("-");
+      let start = parseInt(parts[0], 10);
+      let end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+      if (Number.isNaN(start)) start = 0;
+      if (Number.isNaN(end)) end = fileSize - 1;
+      if (start >= fileSize || start > end) {
+        res.status(416);
+        res.set("Content-Range", `bytes */${fileSize}`);
+        return res.end();
+      }
+      if (end >= fileSize) end = fileSize - 1;
+      const chunksize = end - start + 1;
+      const stream = fs.createReadStream(filePath, { start, end });
+      res.writeHead(206, {
+        "Content-Range": `bytes ${start}-${end}/${fileSize}`,
+        "Accept-Ranges": "bytes",
+        "Content-Length": chunksize,
+        "Content-Type": mime,
+        "Content-Disposition": disposition,
+        "Cache-Control": "private, max-age=3600",
+      });
+      stream.pipe(res);
+      stream.on("error", () => {
+        if (!res.headersSent) res.status(500).end();
+      });
+    } else {
+      res.writeHead(200, {
+        "Content-Length": fileSize,
+        "Content-Type": mime,
+        "Accept-Ranges": "bytes",
+        "Content-Disposition": disposition,
+        "Cache-Control": "private, max-age=3600",
+      });
+      const stream = fs.createReadStream(filePath);
+      stream.pipe(res);
+      stream.on("error", () => {
+        if (!res.headersSent) res.status(500).end();
+      });
+    }
   }
 
   async completeLesson(courseId, lessonId, user) {

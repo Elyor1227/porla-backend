@@ -80,7 +80,68 @@ const requireAdmin = (req, res, next) => {
   next();
 };
 
+/**
+ * <video src> Authorization yubormaydi. Shuning uchun video URL ga ?token=JWT qo'shish mumkin
+ * (yoki fetch + Blob URL ishlatish — xavfsizroq).
+ */
+const protectVideo = async (req, res, next) => {
+  try {
+    let token = null;
+    const header = req.headers.authorization;
+    if (header?.startsWith("Bearer ")) {
+      token = header.split(" ")[1];
+    } else if (req.query.token) {
+      token = String(req.query.token);
+    }
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        message: MESSAGES.AUTH_REQUIRED,
+      });
+    }
+
+    const decoded = jwt.verify(token, JWT_SECRET);
+    const user = await User.findById(decoded.id);
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: MESSAGES.AUTH_REQUIRED,
+      });
+    }
+    if (user.isBlocked) {
+      return res.status(403).json({
+        success: false,
+        message: MESSAGES.USER_BLOCKED,
+      });
+    }
+
+    if (user.isPro && user.proExpiresAt && new Date(user.proExpiresAt) < new Date()) {
+      user.isPro = false;
+      user.proExpiresAt = null;
+      await user.save({ validateBeforeSave: false });
+    }
+
+    req.user = user;
+    next();
+  } catch (err) {
+    if (err.name === "JsonWebTokenError") {
+      return res.status(401).json({
+        success: false,
+        message: MESSAGES.TOKEN_INVALID,
+      });
+    }
+    if (err.name === "TokenExpiredError") {
+      return res.status(401).json({
+        success: false,
+        message: MESSAGES.TOKEN_EXPIRED,
+      });
+    }
+    next(err);
+  }
+};
+
 module.exports = {
   protect,
+  protectVideo,
   requireAdmin,
 };

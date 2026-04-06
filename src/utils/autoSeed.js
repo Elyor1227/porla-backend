@@ -1,16 +1,92 @@
 /**
- * Auto Seed Utility
- * Seeds initial courses and lessons on app startup
+ * Auto Seed — admin + boshlang'ich kurslar
+ *
+ * Admin: .env da SEED_ADMIN_EMAIL, SEED_ADMIN_PASSWORD, SEED_ADMIN_NAME
+ * (yoki BOOTSTRAP_ADMIN_*) yoki quyidagi SEED_ADMIN obyektini to'ldiring.
+ * .env ustunlik beradi. Gitga haqiqiy parol commit qilmang.
  */
 
 const Course = require("../models/Course");
 const Lesson = require("../models/Lesson");
+const User = require("../models/User");
+
+/** Shu yerda to'ldiring — env bo'sh bo'lsa ishlatiladi */
+const SEED_ADMIN = {
+  email: "",
+  password: "",
+  name: "Admin",
+};
+
+function resolveSeedAdmin() {
+  const emailRaw =
+    process.env.SEED_ADMIN_EMAIL ||
+    process.env.BOOTSTRAP_ADMIN_EMAIL ||
+    SEED_ADMIN.email;
+  const passwordRaw =
+    process.env.SEED_ADMIN_PASSWORD ||
+    process.env.BOOTSTRAP_ADMIN_PASSWORD ||
+    SEED_ADMIN.password;
+  const nameRaw =
+    process.env.SEED_ADMIN_NAME ||
+    process.env.BOOTSTRAP_ADMIN_NAME ||
+    SEED_ADMIN.name ||
+    "Admin";
+
+  const email = String(emailRaw || "")
+    .trim()
+    .toLowerCase();
+  const password = passwordRaw != null ? String(passwordRaw) : "";
+  const name = String(nameRaw).trim() || "Admin";
+
+  return { email, password, name };
+}
+
+async function seedAdminIfNeeded() {
+  const { email, password, name } = resolveSeedAdmin();
+
+  if (!email || !password) {
+    return;
+  }
+
+  if (password.length < 6) {
+    console.warn(
+      "⚠  Seed admin: parol kamida 6 belgi — admin yaratilmadi"
+    );
+    return;
+  }
+
+  const hasAdmin = await User.findOne({ isAdmin: true });
+  if (hasAdmin) {
+    return;
+  }
+
+  const existing = await User.findOne({ email }).select("+password");
+  if (existing) {
+    existing.isAdmin = true;
+    existing.isPro = true;
+    existing.password = password;
+    await existing.save();
+    console.log("✅  Seed: mavjud foydalanuvchi admin qilindi:", email);
+    return;
+  }
+
+  await User.create({
+    name,
+    email,
+    password,
+    isAdmin: true,
+    isPro: true,
+  });
+  console.log("✅  Seed: admin yaratildi:", email);
+}
 
 const autoSeed = async () => {
   try {
+    await seedAdminIfNeeded();
+
     const count = await Course.countDocuments().catch(() => 0);
     if (count > 0) {
-      console.log("✅  Kurslar allaqon mavjud, seed qilish talab qilinmadi");
+      console.log("✅  Kurslar allaqon mavjud, kurs seed qilinmadi");
       return;
     }
 

@@ -104,16 +104,3 @@ userSchema.methods.toPublicJSON = function () {
 };
 
 module.exports = mongoose.model("User", userSchema);
-
-// # JWT_EXPIRES=30d
-// # PORT=5000# JWT_EXPIRES=30d
-// # PORT=5000
-// # JWT_EXPIRES=30d
-// # PORT=5000# JWT_EXPIRES=30d
-// # PORT=5000
-// # JWT_EXPIRES=30d
-// # PORT=5000# JWT_EXPIRES=30d
-// # PORT=5000
-// # JWT_EXPIRES=30d
-// # PORT=5000# JWT_EXPIRES=30d
-// # PORT=5000

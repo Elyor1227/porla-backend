@@ -47,6 +47,20 @@ class CourseController {
     }
   }
 
+  async streamLessonVideo(req, res, next) {
+    try {
+      await courseService.sendLessonVideo(req, res);
+    } catch (err) {
+      if (err.isPro) {
+        return sendError(res, err.message, 403, { isPro: true });
+      }
+      if (err.statusCode === 404) {
+        return sendError(res, err.message, 404);
+      }
+      next(err);
+    }
+  }
+
   async completeLesson(req, res, next) {
     try {
       const { courseId, lessonId } = req.params;

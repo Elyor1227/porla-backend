@@ -30,6 +30,7 @@ const adminRoutes = require("./routes/adminRoutes");
 
 // Utilities
 const autoSeed = require("./utils/autoSeed");
+const { ensureVideoUploadDirs } = require("./utils/videoUpload");
 
 // Initialize app
 const app = express();
@@ -38,7 +39,11 @@ const app = express();
 // SECURITY MIDDLEWARE
 // ════════════════════════════════════════════════════════
 
-app.use(helmet());
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+  })
+);
 app.use(cors(corsOptions));
 
 // ════════════════════════════════════════════════════════
@@ -129,7 +134,8 @@ const startServer = async () => {
     // Connect to database
     await connectDB();
 
-    // Auto-seed initial data
+    ensureVideoUploadDirs();
+
     await autoSeed();
 
     // Start server

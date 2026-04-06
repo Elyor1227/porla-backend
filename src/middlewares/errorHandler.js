@@ -33,6 +33,20 @@ const errorHandler = (err, req, res, next) => {
     });
   }
 
+  // Multer (video yuklash)
+  if (err.name === "MulterError") {
+    if (err.code === "LIMIT_FILE_SIZE") {
+      return res.status(400).json({
+        success: false,
+        message: "Video fayl hajmi juda katta (maks. 500 MB)",
+      });
+    }
+    return res.status(400).json({
+      success: false,
+      message: err.message || "Fayl yuklash xatosi",
+    });
+  }
+
   // Custom AppError
   if (err.statusCode) {
     return res.status(err.statusCode).json({

@@ -7,6 +7,8 @@ const JWT_SECRET = process.env.JWT_SECRET || "porla_dev_secret_change_me";
 const JWT_EXPIRES = process.env.JWT_EXPIRES || "30d";
 const ADMIN_KEY = process.env.ADMIN_KEY || "porla_admin_2024";
 const PORT = process.env.PORT || 5000;
+/** To'liq API manzili (masalan https://api.sayt.uz). Bo'sh bo'lsa videoUrl nisbiy /api/... bo'ladi. */
+const PUBLIC_API_URL = (process.env.PUBLIC_API_URL || "").replace(/\/$/, "");
 
 const RATE_LIMIT = {
   auth: { windowMs: 15 * 60 * 1000, max: 500 },
@@ -76,6 +78,7 @@ module.exports = {
   JWT_EXPIRES,
   ADMIN_KEY,
   PORT,
+  PUBLIC_API_URL,
   RATE_LIMIT,
   MESSAGES,
   NOTIFICATION_TYPES,

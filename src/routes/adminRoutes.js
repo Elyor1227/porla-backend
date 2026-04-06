@@ -4,6 +4,7 @@
 
 const express = require("express");
 const adminController = require("../controllers/adminController");
+const { uploadLessonVideo } = require("../utils/videoUpload");
 const { protect, requireAdmin } = require("../middlewares/auth");
 const User = require("../models/User");
 const { ADMIN_KEY, MESSAGES } = require("../config/constants");
@@ -33,9 +34,10 @@ router.post("/create-admin", async (req, res) => {
       });
     }
 
+    const emailNorm = String(email).trim().toLowerCase();
     const admin = await User.create({
       name,
-      email,
+      email: emailNorm,
       password,
       isAdmin: true,
       isPro: true,
@@ -59,6 +61,11 @@ router.use(protect, requireAdmin);
 // Stats
 router.get("/stats", (req, res, next) =>
   adminController.getStats(req, res, next)
+);
+
+// Yangi admin (faqat mavjud admin JWT bilan)
+router.post("/admins", (req, res, next) =>
+  adminController.createAdminUser(req, res, next)
 );
 
 // Users
@@ -112,11 +119,11 @@ router.get("/courses/:courseId/lessons", (req, res, next) =>
   adminController.getLessons(req, res, next)
 );
 
-router.post("/courses/:courseId/lessons", (req, res, next) =>
+router.post("/courses/:courseId/lessons", uploadLessonVideo, (req, res, next) =>
   adminController.createLesson(req, res, next)
 );
 
-router.patch("/courses/:courseId/lessons/:id", (req, res, next) =>
+router.patch("/courses/:courseId/lessons/:id", uploadLessonVideo, (req, res, next) =>
   adminController.updateLesson(req, res, next)
 );
 

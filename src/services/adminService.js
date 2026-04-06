@@ -246,6 +246,30 @@ class AdminService {
       }))
     );
   }
+
+  /** Mavjud admin tomonidan yangi admin yaratish */
+  async createAdminUser(name, email, password) {
+    if (!name || !email || !password) {
+      throw new Error("Ism, email va parol talab qilinadi");
+    }
+    if (password.length < 6) {
+      throw new Error(MESSAGES.PASSWORD_MIN);
+    }
+
+    const normalized = email.toLowerCase().trim();
+    const existing = await User.findOne({ email: normalized });
+    if (existing) {
+      throw new Error(MESSAGES.EMAIL_EXISTS);
+    }
+
+    return User.create({
+      name,
+      email: normalized,
+      password,
+      isAdmin: true,
+      isPro: true,
+    });
+  }
 }
 
 module.exports = new AdminService();

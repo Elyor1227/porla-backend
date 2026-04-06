@@ -16,6 +16,32 @@ class AdminController {
     }
   }
 
+  async createAdminUser(req, res, next) {
+    try {
+      const { name, email, password } = req.body;
+      const user = await adminService.createAdminUser(name, email, password);
+      sendSuccess(
+        res,
+        {
+          message: "Yangi admin yaratildi",
+          user: user.toPublicJSON(),
+        },
+        201
+      );
+    } catch (err) {
+      if (
+        err.message.includes("talab qilinadi") ||
+        err.message.includes("kamida 6")
+      ) {
+        return sendError(res, err.message, 400);
+      }
+      if (err.message.includes("allaqachon")) {
+        return sendError(res, err.message, 409);
+      }
+      next(err);
+    }
+  }
+
   async getUsers(req, res, next) {
     try {
       const page = parseInt(req.query.page) || 1;
@@ -213,15 +239,17 @@ class AdminController {
   async createLesson(req, res, next) {
     try {
       const { courseId } = req.params;
-      const { title, content, videoUrl, duration, order, isPro } = req.body;
+      const { title, content, videoUrl, order, isPro } = req.body;
+      const duration = parseInt(req.body.duration, 10);
       const lesson = await courseAdminService.createLesson(
         courseId,
         title,
         content,
         videoUrl,
-        duration,
+        Number.isFinite(duration) ? duration : 0,
         order,
-        isPro
+        isPro,
+        req.file?.filename
       );
       sendSuccess(
         res,
@@ -238,6 +266,9 @@ class AdminController {
       if (err.message.includes("topilmadi")) {
         return sendError(res, err.message, 404);
       }
+      if (err.message.includes("video fayllar")) {
+        return sendError(res, err.message, 400);
+      }
       next(err);
     }
   }
@@ -245,11 +276,17 @@ class AdminController {
   async updateLesson(req, res, next) {
     try {
       const { courseId, id } = req.params;
-      const lesson = await courseAdminService.updateLesson(
-        courseId,
-        id,
-        req.body
-      );
+      const body = { ...req.body };
+      delete body.videoFile;
+      if (body.duration !== undefined) {
+        const d = parseInt(body.duration, 10);
+        body.duration = Number.isFinite(d) ? d : 0;
+      }
+      if (req.file) {
+        body.videoFile = req.file.filename;
+        body.videoUrl = "";
+      }
+      const lesson = await courseAdminService.updateLesson(courseId, id, body);
       sendSuccess(res, {
         message: "Dars yangilandi",
         lesson,
@@ -257,6 +294,9 @@ class AdminController {
     } catch (err) {
       if (err.message.includes("topilmadi")) {
         return sendError(res, err.message, 404);
+      }
+      if (err.message.includes("video fayllar")) {
+        return sendError(res, err.message, 400);
       }
       next(err);
     }

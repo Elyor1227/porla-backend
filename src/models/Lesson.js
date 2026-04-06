@@ -24,6 +24,11 @@ const lessonSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+    /** Serverdagi fayl nomi (uploads/videos/). Bo'sh bo'lsa faqat videoUrl (tashqi havola) ishlatiladi */
+    videoFile: {
+      type: String,
+      default: "",
+    },
     duration: {
       type: Number,
       default: 0,

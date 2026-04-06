@@ -50,7 +50,7 @@ class TrackerController {
       const { id } = req.params;
       const cycle = await trackerService.updateCycle(id, req.user._id, req.body);
       sendSuccess(res, {
-        message: "Tsikl yangilandi",
+        message: "Sikl yangilandi",
         cycle,
       });
     } catch (err) {
