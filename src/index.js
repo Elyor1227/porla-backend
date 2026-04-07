@@ -31,6 +31,7 @@ const adminRoutes = require("./routes/adminRoutes");
 // Utilities
 const autoSeed = require("./utils/autoSeed");
 const { ensureVideoUploadDirs } = require("./utils/videoUpload");
+const { startTelegramBot } = require("./services/telegramBotService");
 
 // Initialize app
 const app = express();
@@ -142,6 +143,7 @@ const startServer = async () => {
     app.listen(PORT, () => {
       console.log(`\n🌸  Porla Backend — http://localhost:${PORT}`);
       console.log(`📋  Health: http://localhost:${PORT}/api/health\n`);
+      startTelegramBot();
     });
   } catch (error) {
     console.error("❌  Server startup xatosi:", error.message);
