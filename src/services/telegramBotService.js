@@ -64,7 +64,7 @@ function startTelegramBot() {
   const userState = new Map();
 
   const bot = new TelegramBot(token, { polling: true });
-  const isAdmin = (userId) => adminIds.includes(userId);S
+  const isAdmin = (userId) => adminIds.includes(userId);
 
   async function buyCommand(msg) {
     const chatId = msg.chat.id;
