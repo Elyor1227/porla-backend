@@ -37,6 +37,11 @@ function getUserMenu() {
 }
 
 function startTelegramBot() {
+  if (process.env.DISABLE_TELEGRAM_BOT === "true" || process.env.DISABLE_TELEGRAM_BOT === "1") {
+    console.log("ℹ️  DISABLE_TELEGRAM_BOT=true — bot ishga tushirilmadi (faqat bitta joyda polling bo'lishi kerak)");
+    return null;
+  }
+
   const token = process.env.BOT_TOKEN;
   if (!token) {
     console.log("ℹ️  BOT_TOKEN yo'q, Telegram bot ishga tushirilmadi");
@@ -113,8 +118,8 @@ To'lov qilgach, "To'lov qildim" tugmasini bosing va rasm caption'iga emailingizn
 
   bot.on("callback_query", async (query) => {
     try {
-      const data = query.data;
-      const chatId = query.message.chat.id;
+      const data = query.data || "";
+      const chatId = query.message?.chat?.id;
       const userId = query.from.id;
 
       if (data === "payment_done") {
@@ -131,8 +136,88 @@ To'lov qilgach, "To'lov qildim" tugmasini bosing va rasm caption'iga emailingizn
         await bot.sendMessage(chatId, "Bekor qilindi.", isAdmin(userId) ? getAdminMenu() : getUserMenu());
         return bot.answerCallbackQuery(query.id);
       }
+
+      const paymentAction = data.match(/^(accept|reject)_(.+)$/);
+      if (paymentAction) {
+        if (!isAdmin(userId)) {
+          return bot.answerCallbackQuery(query.id, {
+            text: "Siz admin emassiz",
+            show_alert: true,
+          });
+        }
+
+        const action = paymentAction[1];
+        const paymentIdStr = paymentAction[2];
+        let objectId;
+        try {
+          objectId = new mongoose.Types.ObjectId(paymentIdStr);
+        } catch {
+          return bot.answerCallbackQuery(query.id, {
+            text: "Noto'g'ri to'lov ID",
+            show_alert: true,
+          });
+        }
+
+        const payment = await paymentsCollection.findOne({ _id: objectId });
+        if (!payment) {
+          return bot.answerCallbackQuery(query.id, {
+            text: "To'lov topilmadi",
+            show_alert: true,
+          });
+        }
+
+        if (payment.status !== "pending") {
+          return bot.answerCallbackQuery(query.id, {
+            text: "Bu to'lov allaqachon ko'rilgan",
+            show_alert: true,
+          });
+        }
+
+        if (action === "accept") {
+          await paymentsCollection.updateOne({ _id: objectId }, { $set: { status: "approved" } });
+          await usersCollection.updateOne(
+            { user_id: payment.user_id },
+            { $set: { is_premium: true } },
+            { upsert: true }
+          );
+          await bot.sendMessage(
+            payment.user_id,
+            "🎉 <b>To'lov tasdiqlandi!</b>\nSizga PRO versiya berildi.",
+            { parse_mode: "HTML" }
+          );
+          await bot.answerCallbackQuery(query.id, { text: "✅ Tasdiqlandi" });
+        } else {
+          await paymentsCollection.updateOne({ _id: objectId }, { $set: { status: "rejected" } });
+          await bot.sendMessage(
+            payment.user_id,
+            "❌ <b>To'lov rad etildi.</b>\nIltimos, to'lovni tekshirib qayta yuboring.",
+            { parse_mode: "HTML" }
+          );
+          await bot.answerCallbackQuery(query.id, { text: "❌ Rad etildi" });
+        }
+
+        if (query.message) {
+          try {
+            await bot.editMessageReplyMarkup(
+              { inline_keyboard: [] },
+              {
+                chat_id: query.message.chat.id,
+                message_id: query.message.message_id,
+              }
+            );
+          } catch (_) {
+            /* xabar allaqachon o'zgartirilgan bo'lishi mumkin */
+          }
+        }
+        return;
+      }
+
+      await bot.answerCallbackQuery(query.id);
     } catch (e) {
       console.error("[BOT:callback_query]", e.message);
+      try {
+        await bot.answerCallbackQuery(query.id, { text: "Xatolik", show_alert: true });
+      } catch (_) {}
     }
   });
 
