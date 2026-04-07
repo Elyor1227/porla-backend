@@ -56,7 +56,7 @@ function startTelegramBot() {
 
   const price = process.env.PRICE || "37 000";
   const cardNumber = process.env.CARD_NUMBER || "0000 0000 0000 0000";
-  const adminContact = process.env.ADMIN_CONTACT || "@admin_username";
+  const adminContact = process.env.ADMIN_CONTACT || "@komiila_d";
 
   const db = mongoose.connection.db;
   const usersCollection = db.collection("tg_users");
@@ -64,7 +64,7 @@ function startTelegramBot() {
   const userState = new Map();
 
   const bot = new TelegramBot(token, { polling: true });
-  const isAdmin = (userId) => adminIds.includes(userId);
+  const isAdmin = (userId) => adminIds.includes(userId);S
 
   async function buyCommand(msg) {
     const chatId = msg.chat.id;
