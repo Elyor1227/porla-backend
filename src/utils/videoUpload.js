@@ -18,13 +18,30 @@ function resolveVideoDir() {
   return path.join(__dirname, "../../uploads/videos");
 }
 
-const VIDEO_DIR = resolveVideoDir();
-const UPLOAD_ROOT = path.dirname(VIDEO_DIR);
+const DEFAULT_VIDEO_DIR = path.join(__dirname, "../../uploads/videos");
+let VIDEO_DIR = resolveVideoDir();
+let UPLOAD_ROOT = path.dirname(VIDEO_DIR);
+
+function tryEnsure(dir) {
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+}
 
 function ensureVideoUploadDirs() {
-  [UPLOAD_ROOT, VIDEO_DIR].forEach((dir) => {
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  });
+  try {
+    [UPLOAD_ROOT, VIDEO_DIR].forEach((dir) => tryEnsure(dir));
+  } catch (err) {
+    // Agar env papkaga yozish ruxsati bo'lmasa, ilova yiqilmasin.
+    if (err && (err.code === "EACCES" || err.code === "EPERM")) {
+      VIDEO_DIR = DEFAULT_VIDEO_DIR;
+      UPLOAD_ROOT = path.dirname(VIDEO_DIR);
+      [UPLOAD_ROOT, VIDEO_DIR].forEach((dir) => tryEnsure(dir));
+      console.warn(
+        `⚠  VIDEO_STORAGE_DIR ga yozib bo'lmadi, fallback ishlatildi: ${VIDEO_DIR}`
+      );
+      return;
+    }
+    throw err;
+  }
 }
 
 const storage = multer.diskStorage({
