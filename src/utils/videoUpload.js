@@ -7,8 +7,19 @@ const path = require("path");
 const fs = require("fs");
 const crypto = require("crypto");
 
-const UPLOAD_ROOT = path.join(__dirname, "../../uploads");
-const VIDEO_DIR = path.join(UPLOAD_ROOT, "videos");
+function resolveVideoDir() {
+  const fromEnv = process.env.VIDEO_STORAGE_DIR;
+  if (fromEnv && String(fromEnv).trim()) {
+    const raw = String(fromEnv).trim();
+    return path.isAbsolute(raw)
+      ? raw
+      : path.resolve(__dirname, "../../", raw);
+  }
+  return path.join(__dirname, "../../uploads/videos");
+}
+
+const VIDEO_DIR = resolveVideoDir();
+const UPLOAD_ROOT = path.dirname(VIDEO_DIR);
 
 function ensureVideoUploadDirs() {
   [UPLOAD_ROOT, VIDEO_DIR].forEach((dir) => {
