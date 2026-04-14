@@ -58,7 +58,8 @@ class CourseService {
     const withProgress = lessons.map((l, idx) => {
       const obj = l.toObject();
       const isCompleted = completedIds.includes(l._id.toString());
-      const isLocked = idx > 0 && !isUserPro;
+      const isLocked =
+        course.isPro && idx > 0 && !isUserPro;
       const { videoFile: _vf, ...rest } = obj;
 
       return {
@@ -76,6 +77,11 @@ class CourseService {
   }
 
   async getLessonById(courseId, lessonId, user) {
+    const course = await Course.findById(courseId);
+    if (!course) {
+      throw new Error(MESSAGES.COURSE_NOT_FOUND);
+    }
+
     const lesson = await Lesson.findOne({
       _id: lessonId,
       courseId: courseId,
@@ -97,8 +103,8 @@ class CourseService {
     );
     const isUserPro = user.isPro || user.isAdmin;
 
-    // Check pro access (first lesson is free)
-    if (idx > 0 && !isUserPro) {
+    // Pro kurs: 1-dars bepul; qolganlari Pro kerak. Bepul kursda barcha darslar ochiq.
+    if (course.isPro && idx > 0 && !isUserPro) {
       const error = new Error(MESSAGES.COURSE_LOCKED);
       error.isPro = true;
       error.statusCode = 403;
@@ -116,7 +122,7 @@ class CourseService {
           title: nextRaw.title,
           duration: nextRaw.duration,
           order: nextRaw.order,
-          isLocked: idx + 1 > 0 && !isUserPro,
+          isLocked: course.isPro && idx + 1 > 0 && !isUserPro,
           isCompleted: completedIds.includes(nextRaw._id.toString()),
         }
       : null;
@@ -151,6 +157,13 @@ class CourseService {
   }
 
   async assertLessonVideoAccess(courseId, lessonId, user) {
+    const course = await Course.findById(courseId);
+    if (!course) {
+      const err = new Error(MESSAGES.COURSE_NOT_FOUND);
+      err.statusCode = 404;
+      throw err;
+    }
+
     const lesson = await Lesson.findOne({
       _id: lessonId,
       courseId: courseId,
@@ -173,7 +186,7 @@ class CourseService {
     );
     const isUserPro = user.isPro || user.isAdmin;
 
-    if (idx > 0 && !isUserPro) {
+    if (course.isPro && idx > 0 && !isUserPro) {
       const error = new Error(MESSAGES.COURSE_LOCKED);
       error.isPro = true;
       error.statusCode = 403;
@@ -271,6 +284,11 @@ class CourseService {
   }
 
   async completeLesson(courseId, lessonId, user) {
+    const course = await Course.findById(courseId);
+    if (!course) {
+      throw new Error(MESSAGES.COURSE_NOT_FOUND);
+    }
+
     const lesson = await Lesson.findOne({
       _id: lessonId,
       courseId: courseId,
@@ -292,8 +310,7 @@ class CourseService {
     );
     const isUserPro = user.isPro || user.isAdmin;
 
-    // Check pro access
-    if (idx > 0 && !isUserPro) {
+    if (course.isPro && idx > 0 && !isUserPro) {
       const error = new Error(MESSAGES.COURSE_LOCKED);
       error.statusCode = 403;
       throw error;
@@ -329,7 +346,7 @@ class CourseService {
           title: nextRaw.title,
           duration: nextRaw.duration,
           order: nextRaw.order,
-          isLocked: idx + 1 > 0 && !isUserPro,
+          isLocked: course.isPro && idx + 1 > 0 && !isUserPro,
           isCompleted: completedIds.includes(nextRaw._id.toString()),
         }
       : null;
@@ -341,7 +358,7 @@ class CourseService {
       await Notification.create({
         userId: user._id,
         title: "🎓 Kurs tugallandi!",
-        message: `Tabriklaymiz! Siz "${lesson.courseId}" kursini to'liq tugatdingiz.`,
+        message: `Tabriklaymiz! Siz "${course.title}" kursini to'liq tugatdingiz.`,
         type: "achievement",
       }).catch(() => {});
     }
