@@ -54,11 +54,11 @@ function startTelegramBot() {
     .map((v) => parseInt(v.trim(), 10))
     .filter(Number.isFinite);
 
-  const price1Month = process.env.PRICE_1_MONTH || process.env.PRICE || "37 000";
-  const price3Strike = process.env.PRICE_3_STRIKE || "111 000";
-  const price3Month = process.env.PRICE_3_MONTH || "87 000";
-  const cardNumber = process.env.CARD_NUMBER || "5614 6829 0757 1287";
-  const adminContact = process.env.ADMIN_CONTACT || "@komiila_d";
+  const price1Month = "37 000";
+  const price3Strike = "111 000";
+  const price3Month = "87 000";
+  const cardNumber = "5614 6829 0757 1287";
+  const adminContact = "@komiila_d";
 
   const db = mongoose.connection.db;
   const usersCollection = db.collection("tg_users");
