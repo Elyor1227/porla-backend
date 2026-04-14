@@ -54,8 +54,10 @@ function startTelegramBot() {
     .map((v) => parseInt(v.trim(), 10))
     .filter(Number.isFinite);
 
-  const price = process.env.PRICE || "37 000";
-  const cardNumber = process.env.CARD_NUMBER || "0000 0000 0000 0000";
+  const price1Month = process.env.PRICE_1_MONTH || process.env.PRICE || "37 000";
+  const price3Strike = process.env.PRICE_3_STRIKE || "111 000";
+  const price3Month = process.env.PRICE_3_MONTH || "87 000";
+  const cardNumber = process.env.CARD_NUMBER || "5614 6829 0757 1287";
   const adminContact = process.env.ADMIN_CONTACT || "@komiila_d";
 
   const db = mongoose.connection.db;
@@ -68,12 +70,15 @@ function startTelegramBot() {
 
   async function buyCommand(msg) {
     const chatId = msg.chat.id;
-    const text = `<b>🛒 PREMIUM versiya xaridi</b>
+    const text = `<b>PREMIUM obuna xaridi</b>
 
-Narxi: <b>${esc(price)} so'm</b>
+1 oylik — <b>${esc(price1Month)} so'm</b>
+3 oylik — <s>${esc(price3Strike)} so'm</s>
+         <b>${esc(price3Month)} so'm</b>
+
 Karta: <code>${esc(cardNumber)}</code>
 
-To'lov qilgach, "To'lov qildim" tugmasini bosing va rasm caption'iga emailingizni yozing.`;
+To'lov qilgach <b>"To'lov qildim"</b> tugmasini bosing va rasm (chek) caption'iga emailingizni yozib yuboring.`;
 
     return bot.sendMessage(chatId, text, {
       parse_mode: "HTML",
