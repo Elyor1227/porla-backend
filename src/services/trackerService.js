@@ -18,6 +18,36 @@ function diffDays(from, to) {
   return Math.floor((startOfDay(to) - startOfDay(from)) / DAY_MS);
 }
 
+function getCyclePosition(cycleStartDate, cycleLength, now = new Date()) {
+  const today = startOfDay(now);
+  const start = startOfDay(cycleStartDate);
+  const len = Number(cycleLength) || 28;
+
+  if (today <= start) {
+    return {
+      dayOfCycle: 1,
+      daysUntilNext: len,
+      nextPeriod: new Date(start.getTime() + len * DAY_MS),
+      today,
+      start,
+      len,
+    };
+  }
+
+  const passed = Math.max(0, diffDays(start, today));
+  const dayOfCycle = (passed % len) + 1;
+
+  // Keyingi tsiklning boshlanish sanasi (har doim bugundan keyin).
+  const periodsPassed = Math.floor(passed / len) + 1;
+  const nextPeriod = new Date(start);
+  nextPeriod.setDate(nextPeriod.getDate() + periodsPassed * len);
+
+  // Home va calendar bir xil formula ishlatishi uchun shu qiymatni qaytaramiz.
+  const daysUntilNext = diffDays(today, nextPeriod);
+
+  return { dayOfCycle, daysUntilNext, nextPeriod, today, start, len };
+}
+
 class TrackerService {
   async getTodayData(userId) {
     const cycle = await Cycle.findOne({ userId }).sort({ startDate: -1 });
@@ -26,23 +56,16 @@ class TrackerService {
       return null;
     }
 
-    const today = startOfDay(new Date());
-    const cycleStart = startOfDay(cycle.startDate);
-    const cycleLength = Number(cycle.cycleLength) || 28;
-
-    // Calendar va home ekranda bir xil bo'lishi uchun kunni "day boundary" bo'yicha hisoblaymiz.
-    const passed = Math.max(0, diffDays(cycleStart, today));
-    const dayOfCycle = (passed % cycleLength) + 1;
-    const daysUntilNext = cycleLength - dayOfCycle;
+    const pos = getCyclePosition(cycle.startDate, cycle.cycleLength, new Date());
     const todaySymptoms =
-      cycle.symptoms.find((s) => startOfDay(s.date).getTime() === today.getTime()) || null;
+      cycle.symptoms.find((s) => startOfDay(s.date).getTime() === pos.today.getTime()) || null;
 
     return {
-      dayOfCycle,
-      daysUntilNext,
-      cycleLength,
+      dayOfCycle: pos.dayOfCycle,
+      daysUntilNext: pos.daysUntilNext,
+      cycleLength: pos.len,
       todaySymptoms,
-      cycleStartDate: cycleStart,
+      cycleStartDate: pos.start,
     };
   }
 
@@ -58,17 +81,7 @@ class TrackerService {
         cycles.slice(0, 3).reduce((s, c) => s + c.cycleLength, 0) /
           Math.min(cycles.length, 3)
       );
-      const latestStart = startOfDay(cycles[0].startDate);
-      const today = startOfDay(new Date());
-      const passed = diffDays(latestStart, today);
-
-      if (passed < 0) {
-        nextPeriod = latestStart;
-      } else {
-        const periodsPassed = Math.floor(passed / avgLen) + 1;
-        nextPeriod = new Date(latestStart);
-        nextPeriod.setDate(nextPeriod.getDate() + periodsPassed * avgLen);
-      }
+      nextPeriod = getCyclePosition(cycles[0].startDate, avgLen, new Date()).nextPeriod;
     }
 
     return { cycles, nextPeriod };
