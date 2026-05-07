@@ -25,6 +25,7 @@ const MESSAGES = {
   LOGOUT_SUCCESS: "Tizimdan chiqdingiz",
   REGISTER_SUCCESS: "Muvaffaqiyatli ro'yxatdan o'tdingiz",
   EMAIL_EXISTS: "Bu email allaqachon ro'yxatdan o'tgan",
+  PHONE_EXISTS: "Bu telefon raqam allaqachon ro'yxatdan o'tgan",
   INVALID_CREDENTIALS: "Email yoki parol noto'g'ri",
   USER_BLOCKED: "Hisobinguz bloklangan. Murojaat: support@porla.uz",
   
@@ -32,6 +33,8 @@ const MESSAGES = {
   REQUIRED_FIELDS: "Barcha maydonlar to'ldirilishi shart",
   PASSWORD_MIN: "Parol kamida 6 ta belgi bo'lishi kerak",
   PASSWORD_INVALID: "Joriy parol noto'g'ri",
+  PHONE_REQUIRED: "Telefon raqam majburiy",
+  PHONE_INVALID: "Telefon raqam noto'g'ri formatda",
   
   // Courses
   COURSE_NOT_FOUND: "Kurs topilmadi",

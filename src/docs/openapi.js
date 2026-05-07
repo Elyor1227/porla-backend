@@ -57,18 +57,25 @@ module.exports = function buildOpenApiSpec() {
         },
         AuthRegisterBody: {
           type: "object",
-          required: ["name", "email", "password"],
+          required: ["name", "email", "password", "phone"],
           properties: {
             name: { type: "string", example: "User" },
             email: { type: "string", example: "user@example.com" },
             password: { type: "string", example: "123456" },
+            phone: { type: "string", example: "+998901234567" },
           },
         },
         AuthLoginBody: {
           type: "object",
-          required: ["email", "password"],
+          required: ["password"],
           properties: {
             email: { type: "string", example: "user@example.com" },
+            phone: { type: "string", example: "+998901234567" },
+            login: {
+              type: "string",
+              example: "user@example.com",
+              description: "Universal maydon: email yoki phone yuborish mumkin",
+            },
             password: { type: "string", example: "123456" },
           },
         },
@@ -78,6 +85,7 @@ module.exports = function buildOpenApiSpec() {
             _id: { type: "string" },
             name: { type: "string" },
             email: { type: "string" },
+            phone: { type: "string", example: "+998901234567" },
             avatar: { type: "string" },
             isPro: { type: "boolean" },
             proExpiresAt: { type: "string", nullable: true },
@@ -92,6 +100,7 @@ module.exports = function buildOpenApiSpec() {
             message: { type: "string" },
             token: { type: "string" },
             user: { $ref: "#/components/schemas/UserPublic" },
+            phoneSetupRequired: { type: "boolean", example: false },
           },
         },
         Course: {
@@ -230,6 +239,33 @@ module.exports = function buildOpenApiSpec() {
             },
           },
           responses: { 200: { description: "Changed" }, 400: { description: "Bad request" }, 401: { description: "Unauthorized" } },
+        },
+      },
+      "/auth/update-phone": {
+        patch: {
+          tags: ["Auth"],
+          summary: "Update phone number",
+          security: [{ bearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  required: ["phone"],
+                  properties: {
+                    phone: { type: "string", example: "+998901234567" },
+                  },
+                },
+              },
+            },
+          },
+          responses: {
+            200: { description: "Phone saved" },
+            400: { description: "Invalid phone format" },
+            409: { description: "Phone already exists" },
+            401: { description: "Unauthorized" },
+          },
         },
       },
 

@@ -8,11 +8,14 @@ const { sendToken, sendSuccess, sendError } = require("../utils/response");
 class AuthController {
   async register(req, res, next) {
     try {
-      const { name, email, password } = req.body;
-      const user = await authService.register(name, email, password);
+      const { name, email, password, phone } = req.body;
+      const user = await authService.register(name, email, password, phone);
       sendToken(res, user, 201, "Muvaffaqiyatli ro'yxatdan o'tdingiz");
     } catch (err) {
       if (err.message.includes("majburiy")) {
+        return sendError(res, err.message, 400);
+      }
+      if (err.message.includes("formatda")) {
         return sendError(res, err.message, 400);
       }
       if (err.message.includes("allaqachon")) {
@@ -24,11 +27,27 @@ class AuthController {
 
   async login(req, res, next) {
     try {
-      const { email, password } = req.body;
-      const user = await authService.login(email, password);
-      sendToken(res, user, 200, "Tizimga muvaffaqiyatli kirdingiz");
+      const { email, phone, login, password } = req.body;
+      const result = await authService.login({
+        email,
+        phone,
+        login,
+        password,
+      });
+      sendToken(
+        res,
+        result.user,
+        200,
+        "Tizimga muvaffaqiyatli kirdingiz",
+        {
+          phoneSetupRequired: result.phoneSetupRequired,
+        }
+      );
     } catch (err) {
       if (err.message.includes("majburiy")) {
+        return sendError(res, err.message, 400);
+      }
+      if (err.message.includes("telefon raqam")) {
         return sendError(res, err.message, 400);
       }
       if (err.message.includes("noto'g'ri")) {
@@ -76,6 +95,25 @@ class AuthController {
         user: user.toPublicJSON(),
       });
     } catch (err) {
+      next(err);
+    }
+  }
+
+  async updatePhone(req, res, next) {
+    try {
+      const { phone } = req.body;
+      const user = await authService.updatePhone(req.user._id, phone);
+      sendSuccess(res, {
+        message: "Telefon raqam saqlandi",
+        user: user.toPublicJSON(),
+      });
+    } catch (err) {
+      if (err.message.includes("formatda")) {
+        return sendError(res, err.message, 400);
+      }
+      if (err.message.includes("allaqachon")) {
+        return sendError(res, err.message, 409);
+      }
       next(err);
     }
   }

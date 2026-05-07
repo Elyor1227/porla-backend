@@ -13,10 +13,34 @@ function normalizeEmail(email) {
     .toLowerCase();
 }
 
+function normalizePhone(phone) {
+  const raw = String(phone || "").trim();
+  if (!raw) return "";
+  const normalized = raw.replace(/[^\d+]/g, "");
+  if (/^\+?\d{9,15}$/.test(normalized)) {
+    return normalized.startsWith("+") ? normalized : `+${normalized}`;
+  }
+  return "";
+}
+
+function buildLoginQuery({ email, phone, login }) {
+  const emailNorm = normalizeEmail(email);
+  const phoneNorm = normalizePhone(phone);
+  const loginRaw = String(login || "").trim();
+  const loginEmail = normalizeEmail(loginRaw);
+  const loginPhone = normalizePhone(loginRaw);
+
+  if (emailNorm) return { email: emailNorm };
+  if (phoneNorm) return { phone: phoneNorm };
+  if (loginEmail) return { email: loginEmail };
+  if (loginPhone) return { phone: loginPhone };
+  return null;
+}
+
 class AuthService {
-  async register(name, email, password) {
+  async register(name, email, password, phone) {
     // Validate input
-    if (!name || !email || !password) {
+    if (!name || !email || !password || !phone) {
       throw new Error(MESSAGES.REQUIRED_FIELDS);
     }
 
@@ -29,6 +53,11 @@ class AuthService {
       throw new Error(MESSAGES.REQUIRED_FIELDS);
     }
 
+    const phoneNorm = normalizePhone(phone);
+    if (!phoneNorm) {
+      throw new Error(MESSAGES.PHONE_INVALID);
+    }
+
     // Check if email exists
     const existingUser = await User.findOne({
       email: emailNorm,
@@ -37,11 +66,17 @@ class AuthService {
       throw new Error(MESSAGES.EMAIL_EXISTS);
     }
 
+    const existingPhone = await User.findOne({ phone: phoneNorm });
+    if (existingPhone) {
+      throw new Error(MESSAGES.PHONE_EXISTS);
+    }
+
     // Create user
     const user = await User.create({
       name,
       email: emailNorm,
       password,
+      phone: phoneNorm,
     });
 
     // Send welcome notification
@@ -55,21 +90,19 @@ class AuthService {
     return user;
   }
 
-  async login(email, password) {
+  async login({ email, phone, login, password }) {
     // Validate input
-    if (!email || !password) {
-      throw new Error("Email va parol talab qilinadi");
+    if (!password) {
+      throw new Error("Email yoki telefon raqam va parol talab qilinadi");
     }
 
-    const emailNorm = normalizeEmail(email);
-    if (!emailNorm) {
-      throw new Error("Email va parol talab qilinadi");
+    const query = buildLoginQuery({ email, phone, login });
+    if (!query) {
+      throw new Error("Email yoki telefon raqam va parol talab qilinadi");
     }
 
     // Find user and include password
-    const user = await User.findOne({
-      email: emailNorm,
-    }).select("+password");
+    const user = await User.findOne(query).select("+password");
 
     if (!user || !(await user.comparePassword(password))) {
       throw new Error(MESSAGES.INVALID_CREDENTIALS);
@@ -84,7 +117,10 @@ class AuthService {
     user.lastLogin = new Date();
     await user.save({ validateBeforeSave: false });
 
-    return user;
+    return {
+      user,
+      phoneSetupRequired: !user.phone,
+    };
   }
 
   async updateProfile(userId, name, avatar) {
@@ -96,6 +132,30 @@ class AuthService {
       new: true,
       runValidators: true,
     });
+
+    if (!user) {
+      throw new Error(MESSAGES.USER_NOT_FOUND);
+    }
+
+    return user;
+  }
+
+  async updatePhone(userId, phone) {
+    const phoneNorm = normalizePhone(phone);
+    if (!phoneNorm) {
+      throw new Error(MESSAGES.PHONE_INVALID);
+    }
+
+    const existing = await User.findOne({ phone: phoneNorm, _id: { $ne: userId } });
+    if (existing) {
+      throw new Error(MESSAGES.PHONE_EXISTS);
+    }
+
+    const user = await User.findByIdAndUpdate(
+      userId,
+      { phone: phoneNorm },
+      { new: true, runValidators: true }
+    );
 
     if (!user) {
       throw new Error(MESSAGES.USER_NOT_FOUND);

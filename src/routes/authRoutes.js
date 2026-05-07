@@ -23,6 +23,9 @@ router.post("/logout", protect, (req, res, next) =>
 router.patch("/update-profile", protect, (req, res, next) =>
   authController.updateProfile(req, res, next)
 );
+router.patch("/update-phone", protect, (req, res, next) =>
+  authController.updatePhone(req, res, next)
+);
 router.patch("/change-password", protect, (req, res, next) =>
   authController.changePassword(req, res, next)
 );
