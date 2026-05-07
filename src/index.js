@@ -27,6 +27,8 @@ const notificationRoutes = require("./routes/notificationRoutes");
 const qnaRoutes = require("./routes/qnaRoutes");
 const dailyTipRoutes = require("./routes/dailyTipRoutes");
 const adminRoutes = require("./routes/adminRoutes");
+const swaggerUi = require("swagger-ui-express");
+const buildOpenApiSpec = require("./docs/openapi");
 
 // Utilities
 const autoSeed = require("./utils/autoSeed");
@@ -98,6 +100,17 @@ app.use("/api/notifications", notificationRoutes);
 app.use("/api/qna", qnaRoutes);
 app.use("/api/tips", dailyTipRoutes);
 app.use("/api/admin", adminRoutes);
+
+// Swagger docs
+app.get("/api/openapi.json", (req, res) => res.json(buildOpenApiSpec()));
+app.use(
+  "/api/docs",
+  swaggerUi.serve,
+  swaggerUi.setup(buildOpenApiSpec(), {
+    explorer: true,
+    customSiteTitle: "Porla API Docs",
+  })
+);
 
 // Health check
 app.get("/api/health", (req, res) => {
