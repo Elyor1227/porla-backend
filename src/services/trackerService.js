@@ -78,16 +78,21 @@ class TrackerService {
       .limit(12);
 
     let nextPeriod = null;
+    let daysUntilNext = null;
+    let dayOfCycle = null;
+    let cycleLength = null;
 
     if (cycles.length) {
-      const avgLen = Math.round(
-        cycles.slice(0, 3).reduce((s, c) => s + c.cycleLength, 0) /
-          Math.min(cycles.length, 3)
-      );
-      nextPeriod = getCyclePosition(cycles[0].startDate, avgLen, new Date()).nextPeriod;
+      // Home bilan mos bo'lishi uchun oxirgi (joriy) tsikl parametrlari ishlatiladi.
+      const current = cycles[0];
+      const pos = getCyclePosition(current.startDate, current.cycleLength, new Date());
+      nextPeriod = pos.nextPeriod;
+      daysUntilNext = pos.daysUntilNext;
+      dayOfCycle = pos.dayOfCycle;
+      cycleLength = pos.len;
     }
 
-    return { cycles, nextPeriod };
+    return { cycles, nextPeriod, daysUntilNext, dayOfCycle, cycleLength };
   }
 
   async createCycle(userId, startDate, cycleLength, notes) {
