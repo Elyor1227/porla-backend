@@ -26,7 +26,9 @@ function getCyclePosition(cycleStartDate, cycleLength, now = new Date()) {
   if (today <= start) {
     return {
       dayOfCycle: 1,
-      daysUntilNext: len,
+      // Bugungi kun alohida kun sifatida o'tgan deb qaraladi:
+      // 1-kunda 28 emas, 27 qolishi kerak (len=28 bo'lsa).
+      daysUntilNext: Math.max(0, len - 1),
       nextPeriod: new Date(start.getTime() + len * DAY_MS),
       today,
       start,
@@ -43,7 +45,8 @@ function getCyclePosition(cycleStartDate, cycleLength, now = new Date()) {
   nextPeriod.setDate(nextPeriod.getDate() + periodsPassed * len);
 
   // Home va calendar bir xil formula ishlatishi uchun shu qiymatni qaytaramiz.
-  const daysUntilNext = diffDays(today, nextPeriod);
+  // "Qolgan kunlar" hisobida bugun qo'shilmaydi.
+  const daysUntilNext = Math.max(0, diffDays(today, nextPeriod) - 1);
 
   return { dayOfCycle, daysUntilNext, nextPeriod, today, start, len };
 }
