@@ -4,7 +4,7 @@
 
 const express = require("express");
 const adminController = require("../controllers/adminController");
-const { uploadLessonVideo } = require("../utils/videoUpload");
+const { lessonUploadChain } = require("../utils/videoUpload");
 const { protect, requireAdmin } = require("../middlewares/auth");
 const User = require("../models/User");
 const { ADMIN_KEY, MESSAGES } = require("../config/constants");
@@ -119,11 +119,11 @@ router.get("/courses/:courseId/lessons", (req, res, next) =>
   adminController.getLessons(req, res, next)
 );
 
-router.post("/courses/:courseId/lessons", uploadLessonVideo, (req, res, next) =>
+router.post("/courses/:courseId/lessons", ...lessonUploadChain, (req, res, next) =>
   adminController.createLesson(req, res, next)
 );
 
-router.patch("/courses/:courseId/lessons/:id", uploadLessonVideo, (req, res, next) =>
+router.patch("/courses/:courseId/lessons/:id", ...lessonUploadChain, (req, res, next) =>
   adminController.updateLesson(req, res, next)
 );
 

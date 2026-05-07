@@ -7,9 +7,11 @@ const fs = require("fs");
 const path = require("path");
 const Course = require("../models/Course");
 const Lesson = require("../models/Lesson");
+const Notification = require("../models/Notification");
 const { MESSAGES } = require("../config/constants");
 const { toClientVideoUrl } = require("../utils/lessonVideo");
 const { getVideoPath } = require("../utils/videoUpload");
+const { streamVideoToResponse } = require("../utils/videoS3Storage");
 
 class CourseService {
   async getAllCourses(user) {
@@ -220,6 +222,13 @@ class CourseService {
       throw err;
     }
 
+    if ((lesson.videoStorage || "local") === "s3") {
+      await streamVideoToResponse(lesson.videoFile, req, res, {
+        lessonTitle: lesson.title,
+      });
+      return;
+    }
+
     const filePath = getVideoPath(lesson.videoFile);
     if (!filePath || !fs.existsSync(filePath)) {
       const err = new Error("Video fayl serverda topilmadi");
@@ -370,7 +379,5 @@ class CourseService {
     };
   }
 }
-
-const Notification = require("../models/Notification");
 
 module.exports = new CourseService();

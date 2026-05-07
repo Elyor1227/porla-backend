@@ -249,7 +249,8 @@ class AdminController {
         Number.isFinite(duration) ? duration : 0,
         order,
         isPro,
-        req.file?.filename
+        req.file?.filename || "",
+        req.file ? (req.lessonVideoStorage || "local") : "local"
       );
       sendSuccess(
         res,
@@ -278,6 +279,7 @@ class AdminController {
       const { courseId, id } = req.params;
       const body = { ...req.body };
       delete body.videoFile;
+      delete body.videoStorage;
       if (body.duration !== undefined) {
         const d = parseInt(body.duration, 10);
         body.duration = Number.isFinite(d) ? d : 0;
@@ -285,6 +287,7 @@ class AdminController {
       if (req.file) {
         body.videoFile = req.file.filename;
         body.videoUrl = "";
+        body.videoStorage = req.lessonVideoStorage || "local";
       }
       const lesson = await courseAdminService.updateLesson(courseId, id, body);
       sendSuccess(res, {

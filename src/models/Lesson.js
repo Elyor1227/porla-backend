@@ -24,10 +24,16 @@ const lessonSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
-    /** Serverdagi fayl nomi (uploads/videos/). Bo'sh bo'lsa faqat videoUrl (tashqi havola) ishlatiladi */
+    /** Server diski (local) yoki S3 object key */
     videoFile: {
       type: String,
       default: "",
+    },
+    /** local — uploads/videos; s3 — S3/R2/MinIO (VIDEO_STORAGE=s3) */
+    videoStorage: {
+      type: String,
+      enum: ["local", "s3"],
+      default: "local",
     },
     duration: {
       type: Number,

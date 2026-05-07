@@ -12,6 +12,25 @@ cd backend
 npm start
 ```
 
+## 🎥 Video Upload (Render) — Videolar yo‘qolib qolmasin
+
+Render’da oddiy deployda server diski (ephemeral) yangilanadi va `uploads/` ichidagi fayllar o‘chib ketishi mumkin. Siz pullik tarifdasiz, shuning uchun **Persistent Disk** ishlating.
+
+### Render’da qilish kerak bo‘lganlar
+
+1. Render Dashboard → **Web Service** → **Disks** → **Add Disk**
+2. **Mount path**: `/var/data` (tavsiya)
+3. Service → **Environment** → Environment Variable qo‘shing:
+
+```bash
+VIDEO_STORAGE_DIR=/var/data/videos
+```
+
+4. Redeploy qiling.
+
+### Muhim eslatma
+- Eski deploylarda disk ephemeral bo‘lgan bo‘lsa, oldin yuklangan videolar allaqachon yo‘qolgan bo‘lishi mumkin — ularni **qayta upload** qilish kerak bo‘ladi.
+
 Expected output:
 ```
 ✅  MongoDB ga ulandi

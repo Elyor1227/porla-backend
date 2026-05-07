@@ -185,6 +185,20 @@ cd backend
 npm start
 ```
 
+### Issue: Render’da video yuklangan, lekin keyin yo‘qolib qoladi
+**Sabab:** Render’dagi oddiy disk ephemeral. Redeployda `uploads/` ichidagi videolar o‘chib ketadi, MongoDB esa faqat `videoFile` (nom/key) ni saqlab qoladi.
+
+**Yechim (Render paid): Persistent Disk**
+1. Render Dashboard → Web Service → **Disks** → **Add Disk**
+2. **Mount path**: `/var/data`
+3. Web Service → **Environment** ga qo‘shing:
+
+```bash
+VIDEO_STORAGE_DIR=/var/data/videos
+```
+
+4. Redeploy qiling.
+
 ### Issue: Server won't start
 **Solution:** Check environment variables
 ```bash

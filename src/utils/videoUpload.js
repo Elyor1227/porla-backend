@@ -1,11 +1,17 @@
 /**
- * Admin: dars videosini diskka yozish (multer)
+ * Admin: dars videosini diskka yoki S3-compatible storage ga yozish (multer)
  */
 
 const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
 const crypto = require("crypto");
+const {
+  isS3VideoEnabled,
+  validateS3EnvOrExit,
+  uploadMulterBufferFile,
+  deleteObjectKey,
+} = require("./videoS3Storage");
 
 function resolveVideoDir() {
   const fromEnv = process.env.VIDEO_STORAGE_DIR;
@@ -27,10 +33,10 @@ function tryEnsure(dir) {
 }
 
 function ensureVideoUploadDirs() {
+  if (isS3VideoEnabled()) return;
   try {
     [UPLOAD_ROOT, VIDEO_DIR].forEach((dir) => tryEnsure(dir));
   } catch (err) {
-    // Agar env papkaga yozish ruxsati bo'lmasa, ilova yiqilmasin.
     if (err && (err.code === "EACCES" || err.code === "EPERM")) {
       VIDEO_DIR = DEFAULT_VIDEO_DIR;
       UPLOAD_ROOT = path.dirname(VIDEO_DIR);
@@ -44,7 +50,7 @@ function ensureVideoUploadDirs() {
   }
 }
 
-const storage = multer.diskStorage({
+const diskStorage = multer.diskStorage({
   destination: (req, file, cb) => {
     ensureVideoUploadDirs();
     cb(null, VIDEO_DIR);
@@ -65,14 +71,59 @@ function fileFilter(req, file, cb) {
   cb(new Error("Faqat video fayllar (mp4, webm, mov, m4v) qabul qilinadi"));
 }
 
-const upload = multer({
-  storage,
-  limits: { fileSize: 500 * 1024 * 1024 },
+const multerLimits = { fileSize: 500 * 1024 * 1024 };
+
+const diskUpload = multer({
+  storage: diskStorage,
+  limits: multerLimits,
+  fileFilter,
+});
+
+const memoryUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: multerLimits,
   fileFilter,
 });
 
 /**
- * @param {string} filename - DB dagi videoFile
+ * S3: buffer → bulut; req.file.filename va req.lessonVideoStorage o'rnatiladi
+ */
+async function flushVideoBufferToS3(req, res, next) {
+  if (!req.file?.buffer) return next();
+  try {
+    const key = await uploadMulterBufferFile(req.file);
+    req.file.filename = key;
+    req.lessonVideoStorage = "s3";
+    next();
+  } catch (err) {
+    next(err);
+  }
+}
+
+const lessonUploadChain = isS3VideoEnabled()
+  ? [memoryUpload.single("video"), flushVideoBufferToS3]
+  : [diskUpload.single("video")];
+
+/**
+ * @param {{ videoFile?: string, videoStorage?: string }} lesson
+ */
+function deleteLessonVideoAsset(lesson) {
+  if (!lesson?.videoFile) return;
+  const kind = (lesson.videoStorage || "local") === "s3" ? "s3" : "local";
+  if (kind === "s3") {
+    deleteObjectKey(lesson.videoFile).catch(() => {});
+    return;
+  }
+  const p = getVideoPath(lesson.videoFile);
+  if (p && fs.existsSync(p)) {
+    try {
+      fs.unlinkSync(p);
+    } catch (_) {}
+  }
+}
+
+/**
+ * @param {string} filename - DB dagi videoFile (faqat local)
  * @returns {string|null} - diskdagi to'liq yo'l yoki noto'g'ri nom
  */
 function getVideoPath(filename) {
@@ -83,19 +134,18 @@ function getVideoPath(filename) {
   return path.join(VIDEO_DIR, filename);
 }
 
+/** @deprecated deleteLessonVideoAsset ishlating */
 function deleteStoredVideo(filename) {
-  const p = getVideoPath(filename);
-  if (p && fs.existsSync(p)) {
-    try {
-      fs.unlinkSync(p);
-    } catch (_) {}
-  }
+  deleteLessonVideoAsset({ videoFile: filename, videoStorage: "local" });
 }
 
 module.exports = {
-  uploadLessonVideo: upload.single("video"),
+  uploadLessonVideo: diskUpload.single("video"),
+  lessonUploadChain,
   VIDEO_DIR,
   ensureVideoUploadDirs,
   getVideoPath,
   deleteStoredVideo,
+  deleteLessonVideoAsset,
+  validateVideoStorageOnStartup: validateS3EnvOrExit,
 };

@@ -6,7 +6,7 @@ const Course = require("../models/Course");
 const Lesson = require("../models/Lesson");
 const { MESSAGES } = require("../config/constants");
 const { toClientVideoUrl } = require("../utils/lessonVideo");
-const { deleteStoredVideo } = require("../utils/videoUpload");
+const { deleteLessonVideoAsset } = require("../utils/videoUpload");
 
 class CourseAdminService {
   async getAllCourses() {
@@ -60,10 +60,10 @@ class CourseAdminService {
       throw new Error(MESSAGES.COURSE_NOT_FOUND);
     }
 
-    const lessonDocs = await Lesson.find({ courseId }).select("videoFile");
-    lessonDocs.forEach((l) => {
-      if (l.videoFile) deleteStoredVideo(l.videoFile);
-    });
+    const lessonDocs = await Lesson.find({ courseId }).select(
+      "videoFile videoStorage"
+    );
+    lessonDocs.forEach((l) => deleteLessonVideoAsset(l));
 
     await Promise.all([
       Course.findByIdAndDelete(courseId),
@@ -93,7 +93,8 @@ class CourseAdminService {
     duration,
     order,
     isPro,
-    videoFile
+    videoFile,
+    videoStorage = "local"
   ) {
     if (!title || !content) {
       throw new Error("Sarlavha va mazmun majburiy");
@@ -110,6 +111,7 @@ class CourseAdminService {
       content,
       videoUrl: videoFile ? "" : videoUrl || "",
       videoFile: videoFile || "",
+      videoStorage: videoFile ? videoStorage || "local" : "local",
       duration: duration || 0,
       order: order || 0,
       isPro: isPro !== undefined ? isPro : course.isPro,
@@ -131,7 +133,7 @@ class CourseAdminService {
     const next = { ...updates };
 
     if (next.videoFile && existing.videoFile && next.videoFile !== existing.videoFile) {
-      deleteStoredVideo(existing.videoFile);
+      deleteLessonVideoAsset(existing);
     }
 
     if (next.videoFile) {
@@ -139,8 +141,9 @@ class CourseAdminService {
     }
 
     if (next.videoUrl !== undefined && /^https?:\/\//i.test(String(next.videoUrl).trim())) {
-      if (existing.videoFile) deleteStoredVideo(existing.videoFile);
+      if (existing.videoFile) deleteLessonVideoAsset(existing);
       next.videoFile = "";
+      next.videoStorage = "local";
     }
 
     const lesson = await Lesson.findOneAndUpdate(
@@ -166,7 +169,7 @@ class CourseAdminService {
       throw new Error(MESSAGES.LESSON_NOT_FOUND);
     }
 
-    if (lesson.videoFile) deleteStoredVideo(lesson.videoFile);
+    deleteLessonVideoAsset(lesson);
 
     return lesson;
   }

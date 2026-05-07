@@ -30,7 +30,10 @@ const adminRoutes = require("./routes/adminRoutes");
 
 // Utilities
 const autoSeed = require("./utils/autoSeed");
-const { ensureVideoUploadDirs } = require("./utils/videoUpload");
+const {
+  ensureVideoUploadDirs,
+  validateVideoStorageOnStartup,
+} = require("./utils/videoUpload");
 const { startTelegramBot } = require("./services/telegramBotService");
 
 // Initialize app
@@ -135,6 +138,7 @@ const startServer = async () => {
     // Connect to database
     await connectDB();
 
+    validateVideoStorageOnStartup();
     ensureVideoUploadDirs();
 
     await autoSeed();
