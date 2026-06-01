@@ -601,6 +601,13 @@ module.exports = function buildOpenApiSpec() {
           parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
           responses: { 200: { description: "User" }, 404: { description: "Not found" } },
         },
+        delete: {
+          tags: ["Admin"],
+          summary: "Admin delete user",
+          security: [{ bearerAuth: [] }],
+          parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
+          responses: { 200: { description: "Deleted" }, 403: { description: "Cannot delete admin" }, 404: { description: "Not found" } },
+        },
       },
       "/admin/users/{id}/pro": {
         patch: {
@@ -620,15 +627,6 @@ module.exports = function buildOpenApiSpec() {
           parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
           requestBody: { required: true, content: { "application/json": { schema: { type: "object", properties: { isBlocked: { type: "boolean" } } } } } },
           responses: { 200: { description: "OK" } },
-        },
-      },
-      "/admin/users/{id}": {
-        delete: {
-          tags: ["Admin"],
-          summary: "Admin delete user",
-          security: [{ bearerAuth: [] }],
-          parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
-          responses: { 200: { description: "Deleted" }, 403: { description: "Cannot delete admin" }, 404: { description: "Not found" } },
         },
       },
       "/admin/broadcast": {

@@ -1,4 +1,3 @@
-
 /**
  * Q&A Controller
  */
@@ -8,16 +7,19 @@ const Notification = require("../models/Notification");
 const { sendSuccess, sendError } = require("../utils/response");
 
 class QnAController {
-  // Admin: delete all Q&A and notifications
+  // Admin: barcha Q&A va notificationlarni o'chirish
   async clearAllQnaAndNotifications(req, res, next) {
     try {
       await qnaService.clearAllQnaAndNotifications();
-      sendSuccess(res, { message: "Barcha savol-javoblar va notificationlar o'chirildi" });
+      sendSuccess(res, {
+        message: "Barcha savol-javoblar va notificationlar o'chirildi",
+      });
     } catch (err) {
       next(err);
     }
   }
-  // Authenticated user: get their own answers
+
+  // Autentifikatsiyalangan foydalanuvchi o'z javoblarini oladi
   async getUserAnswers(req, res, next) {
     try {
       const userId = req.user && req.user._id;
@@ -28,7 +30,8 @@ class QnAController {
       next(err);
     }
   }
-  // Anonymous user checks answer by contact (email/phone)
+
+  // Anonim foydalanuvchi kontakt (email/telefon) orqali javobni tekshiradi
   async getAnonAnswer(req, res, next) {
     try {
       const contact = (req.query.contact || "").trim();
@@ -42,13 +45,12 @@ class QnAController {
     }
   }
 
-  // ...existing controller methods...
   async submitQuestion(req, res, next) {
     try {
       const { question, topic, askedName, contact } = req.body;
       const askedIp = req.headers["x-forwarded-for"] || req.ip || "";
 
-      // If user is authenticated, use their _id and email
+      // Autentifikatsiyalangan bo'lsa, _id va email ishlatiladi
       let askedBy = null;
       let finalContact = contact;
       if (req.user) {
@@ -68,16 +70,12 @@ class QnAController {
       sendSuccess(
         res,
         {
-          message:
-            "Savolingiz yuborildi! Adminlar tez orada ko'rib chiqadi.",
+          message: "Savolingiz yuborildi! Adminlar tez orada ko'rib chiqadi.",
           id: doc._id,
         },
         201
       );
     } catch (err) {
-      if (err.message.includes("belgi")) {
-        return sendError(res, err.message, 400);
-      }
       next(err);
     }
   }
@@ -89,12 +87,7 @@ class QnAController {
       const search = (req.query.search || "").trim();
       const topic = (req.query.topic || "").trim();
 
-      const result = await qnaService.getPublicQuestions(
-        page,
-        limit,
-        search,
-        topic
-      );
+      const result = await qnaService.getPublicQuestions(page, limit, search, topic);
       sendSuccess(res, result);
     } catch (err) {
       next(err);
@@ -107,9 +100,6 @@ class QnAController {
       const item = await qnaService.getPublicQuestionById(id);
       sendSuccess(res, { item });
     } catch (err) {
-      if (err.message.includes("topilmadi")) {
-        return sendError(res, err.message, 404);
-      }
       next(err);
     }
   }
@@ -122,13 +112,7 @@ class QnAController {
       const published = (req.query.published || "").trim();
       const search = (req.query.search || "").trim();
 
-      const result = await qnaService.getAdminQuestions(
-        page,
-        limit,
-        status,
-        published,
-        search
-      );
+      const result = await qnaService.getAdminQuestions(page, limit, status, published, search);
       sendSuccess(res, result);
     } catch (err) {
       next(err);
@@ -141,9 +125,6 @@ class QnAController {
       const item = await qnaService.getAdminQuestionById(id);
       sendSuccess(res, { item });
     } catch (err) {
-      if (err.message.includes("topilmadi")) {
-        return sendError(res, err.message, 404);
-      }
       next(err);
     }
   }
@@ -152,23 +133,9 @@ class QnAController {
     try {
       const { id } = req.params;
       const { answer, isPublished } = req.body;
-      const item = await qnaService.answerQuestion(
-        id,
-        answer,
-        isPublished,
-        req.user._id
-      );
-      sendSuccess(res, {
-        message: "Javob saqlandi",
-        item,
-      });
+      const item = await qnaService.answerQuestion(id, answer, isPublished, req.user._id);
+      sendSuccess(res, { message: "Javob saqlandi", item });
     } catch (err) {
-      if (err.message.includes("belgi")) {
-        return sendError(res, err.message, 400);
-      }
-      if (err.message.includes("topilmadi")) {
-        return sendError(res, err.message, 404);
-      }
       next(err);
     }
   }
@@ -179,14 +146,8 @@ class QnAController {
       const { isPublished } = req.body;
       const item = await qnaService.publishQuestion(id, isPublished);
       const message = isPublished ? "Nashr etildi" : "Nashrdan olindi";
-      sendSuccess(res, {
-        message,
-        item,
-      });
+      sendSuccess(res, { message, item });
     } catch (err) {
-      if (err.message.includes("topilmadi")) {
-        return sendError(res, err.message, 404);
-      }
       next(err);
     }
   }
@@ -197,27 +158,30 @@ class QnAController {
       await qnaService.deleteQuestion(id);
       sendSuccess(res, { message: "Savol o'chirildi" });
     } catch (err) {
-      if (err.message.includes("topilmadi")) {
-        return sendError(res, err.message, 404);
-      }
       next(err);
     }
   }
-  async notifyAllUsers(req, res) {
-  const { type, title, message } = req.body;
-  // Barcha userlarni toping va notification yarating
-  const users = await User.find({});
-  const notifications = users.map(u => ({
-    user: u._id,
-    type,
-    title,
-    message,
-    createdAt: new Date(),
-    isRead: false,
-  }));
-  await Notification.insertMany(notifications);
-  res.json({ success: true, message: "Broadcast yuborildi" });
+
+  async notifyAllUsers(req, res, next) {
+    try {
+      const { type = "info", title, message } = req.body;
+      if (!title || !message) {
+        return sendError(res, "Sarlavha va xabar kerak", 400);
+      }
+      const users = await User.find({}).select("_id");
+      const notifications = users.map((u) => ({
+        userId: u._id,
+        type,
+        title,
+        message,
+        isRead: false,
+      }));
+      await Notification.insertMany(notifications);
+      sendSuccess(res, { message: `${users.length} ta foydalanuvchiga yuborildi` });
+    } catch (err) {
+      next(err);
+    }
+  }
 }
-};
 
 module.exports = new QnAController();

@@ -3,7 +3,7 @@
  */
 
 const dailyTipService = require("../services/dailyTipService");
-const { sendSuccess, sendError } = require("../utils/response");
+const { sendSuccess } = require("../utils/response");
 
 class DailyTipController {
   async getTodayTip(req, res, next) {
@@ -34,11 +34,7 @@ class DailyTipController {
       const limit = Math.min(parseInt(req.query.limit) || 30, 100);
       const category = req.query.category || "";
 
-      const result = await dailyTipService.getAllTipsAdmin(
-        page,
-        limit,
-        category
-      );
+      const result = await dailyTipService.getAllTipsAdmin(page, limit, category);
       sendSuccess(res, result);
     } catch (err) {
       next(err);
@@ -56,21 +52,8 @@ class DailyTipController {
         isActive,
         req.user._id
       );
-      sendSuccess(
-        res,
-        {
-          message: "Maslahat qo'shildi",
-          tip,
-        },
-        201
-      );
+      sendSuccess(res, { message: "Maslahat qo'shildi", tip }, 201);
     } catch (err) {
-      if (err.message.includes("belgi")) {
-        return sendError(res, err.message, 400);
-      }
-      if (err.message.includes("formati")) {
-        return sendError(res, err.message, 400);
-      }
       next(err);
     }
   }
@@ -79,17 +62,8 @@ class DailyTipController {
     try {
       const { id } = req.params;
       const tip = await dailyTipService.updateTip(id, req.body);
-      sendSuccess(res, {
-        message: "Maslahat yangilandi",
-        tip,
-      });
+      sendSuccess(res, { message: "Maslahat yangilandi", tip });
     } catch (err) {
-      if (err.message.includes("topilmadi")) {
-        return sendError(res, err.message, 404);
-      }
-      if (err.message.includes("formati")) {
-        return sendError(res, err.message, 400);
-      }
       next(err);
     }
   }
@@ -100,9 +74,6 @@ class DailyTipController {
       await dailyTipService.deleteTip(id);
       sendSuccess(res, { message: "Maslahat o'chirildi" });
     } catch (err) {
-      if (err.message.includes("topilmadi")) {
-        return sendError(res, err.message, 404);
-      }
       next(err);
     }
   }

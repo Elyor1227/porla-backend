@@ -5,6 +5,7 @@
 
 const Cycle = require("../models/Cycle");
 const { MESSAGES } = require("../config/constants");
+const AppError = require("../utils/AppError");
 
 const DAY_MS = 86400000;
 
@@ -97,7 +98,7 @@ class TrackerService {
 
   async createCycle(userId, startDate, cycleLength, notes) {
     if (!startDate) {
-      throw new Error(MESSAGES.CYCLE_START_REQUIRED);
+      throw AppError.badRequest(MESSAGES.CYCLE_START_REQUIRED, "CYCLE_START_REQUIRED");
     }
 
     const cycle = await Cycle.create({
@@ -114,7 +115,7 @@ class TrackerService {
     const cycle = await Cycle.findOne({ _id: cycleId, userId });
 
     if (!cycle) {
-      throw new Error(MESSAGES.CYCLE_NOT_FOUND);
+      throw AppError.notFound(MESSAGES.CYCLE_NOT_FOUND, "CYCLE_NOT_FOUND");
     }
 
     const { endDate, cycleLength, notes, symptoms } = updateData;
@@ -131,13 +132,13 @@ class TrackerService {
 
   async addOrUpdateSymptoms(userId, date, items, mood, painLevel, notes) {
     if (!date) {
-      throw new Error("Sana majburiy");
+      throw AppError.badRequest("Sana majburiy", "DATE_REQUIRED");
     }
 
     const cycle = await Cycle.findOne({ userId }).sort({ startDate: -1 });
 
     if (!cycle) {
-      throw new Error(MESSAGES.CYCLE_NOT_STARTED);
+      throw AppError.notFound(MESSAGES.CYCLE_NOT_STARTED, "CYCLE_NOT_STARTED");
     }
 
     const d = startOfDay(date);

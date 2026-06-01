@@ -7,24 +7,30 @@ const Lesson = require("../models/Lesson");
 const { MESSAGES } = require("../config/constants");
 const { toClientVideoUrl } = require("../utils/lessonVideo");
 const { deleteLessonVideoAsset } = require("../utils/videoUpload");
+const AppError = require("../utils/AppError");
+const cache = require("../utils/cache");
+
+const invalidateCourses = () => cache.del("courses");
 
 class CourseAdminService {
   async getAllCourses() {
     const courses = await Course.find().sort("order");
 
-    const result = await Promise.all(
-      courses.map(async (c) => ({
-        ...c.toObject(),
-        lessonCount: await Lesson.countDocuments({ courseId: c._id }),
-      }))
-    );
+    // N+1 o'rniga bitta aggregation (admin: barcha darslar, isActive shart emas)
+    const counts = await Lesson.aggregate([
+      { $group: { _id: "$courseId", count: { $sum: 1 } } },
+    ]);
+    const countMap = new Map(counts.map((c) => [String(c._id), c.count]));
 
-    return result;
+    return courses.map((c) => ({
+      ...c.toObject(),
+      lessonCount: countMap.get(String(c._id)) || 0,
+    }));
   }
 
   async createCourse(title, description, icon, color, bgColor, isPro, order) {
     if (!title || !description) {
-      throw new Error("Sarlavha va tavsif majburiy");
+      throw AppError.badRequest("Sarlavha va tavsif majburiy", "REQUIRED_FIELDS");
     }
 
     const course = await Course.create({
@@ -37,6 +43,7 @@ class CourseAdminService {
       order: order || 0,
     });
 
+    await invalidateCourses();
     return course;
   }
 
@@ -47,9 +54,10 @@ class CourseAdminService {
     });
 
     if (!course) {
-      throw new Error(MESSAGES.COURSE_NOT_FOUND);
+      throw AppError.notFound(MESSAGES.COURSE_NOT_FOUND, "COURSE_NOT_FOUND");
     }
 
+    await invalidateCourses();
     return course;
   }
 
@@ -57,7 +65,7 @@ class CourseAdminService {
     const course = await Course.findById(courseId);
 
     if (!course) {
-      throw new Error(MESSAGES.COURSE_NOT_FOUND);
+      throw AppError.notFound(MESSAGES.COURSE_NOT_FOUND, "COURSE_NOT_FOUND");
     }
 
     const lessonDocs = await Lesson.find({ courseId }).select(
@@ -70,6 +78,7 @@ class CourseAdminService {
       Lesson.deleteMany({ courseId }),
     ]);
 
+    await invalidateCourses();
     return course;
   }
 
@@ -97,12 +106,12 @@ class CourseAdminService {
     videoStorage = "local"
   ) {
     if (!title || !content) {
-      throw new Error("Sarlavha va mazmun majburiy");
+      throw AppError.badRequest("Sarlavha va mazmun majburiy", "REQUIRED_FIELDS");
     }
 
     const course = await Course.findById(courseId);
     if (!course) {
-      throw new Error(MESSAGES.COURSE_NOT_FOUND);
+      throw AppError.notFound(MESSAGES.COURSE_NOT_FOUND, "COURSE_NOT_FOUND");
     }
 
     const lesson = await Lesson.create({
@@ -117,6 +126,8 @@ class CourseAdminService {
       isPro: isPro !== undefined ? isPro : course.isPro,
     });
 
+    await invalidateCourses();
+
     const o = lesson.toObject();
     return {
       ...o,
@@ -127,7 +138,7 @@ class CourseAdminService {
   async updateLesson(courseId, lessonId, updates) {
     const existing = await Lesson.findOne({ _id: lessonId, courseId });
     if (!existing) {
-      throw new Error(MESSAGES.LESSON_NOT_FOUND);
+      throw AppError.notFound(MESSAGES.LESSON_NOT_FOUND, "LESSON_NOT_FOUND");
     }
 
     const next = { ...updates };
@@ -152,6 +163,8 @@ class CourseAdminService {
       { returnDocument: "after", runValidators: true }
     );
 
+    await invalidateCourses();
+
     const o = lesson.toObject();
     return {
       ...o,
@@ -166,17 +179,18 @@ class CourseAdminService {
     });
 
     if (!lesson) {
-      throw new Error(MESSAGES.LESSON_NOT_FOUND);
+      throw AppError.notFound(MESSAGES.LESSON_NOT_FOUND, "LESSON_NOT_FOUND");
     }
 
     deleteLessonVideoAsset(lesson);
 
+    await invalidateCourses();
     return lesson;
   }
 
   async seedData() {
     if ((await Course.countDocuments()) > 0) {
-      throw new Error("Ma'lumotlar allaqon mavjud");
+      throw AppError.conflict("Ma'lumotlar allaqon mavjud", "ALREADY_SEEDED");
     }
 
     const courses = await Course.insertMany([
@@ -248,6 +262,7 @@ class CourseAdminService {
 
     await Lesson.insertMany(lessons);
 
+    await invalidateCourses();
     return {
       courses: courses.length,
       lessons: lessons.length,

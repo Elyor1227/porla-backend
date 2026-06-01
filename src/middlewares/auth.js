@@ -6,7 +6,8 @@ const jwt = require("jsonwebtoken");
 const { JWT_SECRET, MESSAGES } = require("../config/constants");
 const User = require("../models/User");
 const Notification = require("../models/Notification");
-const AppError = require("../utils/AppError");
+const { isProExpired } = require("../utils/proStatus");
+const { isBlacklisted } = require("../utils/tokenBlacklist");
 
 const protect = async (req, res, next) => {
   try {
@@ -20,6 +21,16 @@ const protect = async (req, res, next) => {
 
     const token = header.split(" ")[1];
     const decoded = jwt.verify(token, JWT_SECRET);
+
+    // Refresh tokenni access sifatida ishlatishga yo'l qo'ymaymiz
+    if (decoded.type === "refresh") {
+      return res.status(401).json({ success: false, message: MESSAGES.TOKEN_INVALID });
+    }
+
+    // Logout qilingan token (blacklist)
+    if (decoded.jti && (await isBlacklisted(decoded.jti))) {
+      return res.status(401).json({ success: false, message: MESSAGES.TOKEN_INVALID });
+    }
 
     const user = await User.findById(decoded.id);
     if (!user) {
@@ -38,7 +49,7 @@ const protect = async (req, res, next) => {
     }
 
     // Auto-disable expired Pro
-    if (user.isPro && user.proExpiresAt && new Date(user.proExpiresAt) < new Date()) {
+    if (isProExpired(user)) {
       user.isPro = false;
       user.proExpiresAt = null;
       await user.save({ validateBeforeSave: false });
@@ -115,7 +126,7 @@ const protectVideo = async (req, res, next) => {
       });
     }
 
-    if (user.isPro && user.proExpiresAt && new Date(user.proExpiresAt) < new Date()) {
+    if (isProExpired(user)) {
       user.isPro = false;
       user.proExpiresAt = null;
       await user.save({ validateBeforeSave: false });

@@ -9,12 +9,19 @@ const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
+const pinoHttp = require("pino-http");
 require("dotenv").config();
+
+const logger = require("./utils/logger");
 
 // Config imports
 const { connectDB } = require("./config/database");
 const { corsOptions } = require("./config/cors");
 const { RATE_LIMIT, PORT } = require("./config/constants");
+const { validateEnv } = require("./config/validateEnv");
+
+// Muhit o'zgaruvchilarini darhol tekshirish (kritik kalitlar yo'q bo'lsa exit)
+validateEnv();
 
 // Middleware imports
 const errorHandler = require("./middlewares/errorHandler");
@@ -53,6 +60,21 @@ app.use(
 app.use(cors(corsOptions));
 
 // ════════════════════════════════════════════════════════
+// REQUEST LOGGING
+// ════════════════════════════════════════════════════════
+
+app.use(
+  pinoHttp({
+    logger,
+    autoLogging: {
+      // health check va video oqimini logga to'ldirib yubormaymiz
+      ignore: (req) =>
+        req.url === "/api/health" || /\/video(\?|$)/.test(req.url),
+    },
+  })
+);
+
+// ════════════════════════════════════════════════════════
 // BODY PARSER MIDDLEWARE
 // ════════════════════════════════════════════════════════
 
@@ -75,15 +97,6 @@ const authLimiter = rateLimit({
 const generalLimiter = rateLimit({
   windowMs: RATE_LIMIT.general.windowMs,
   max: RATE_LIMIT.general.max,
-});
-
-const qnaSubmitLimiter = rateLimit({
-  windowMs: RATE_LIMIT.qnaSubmit.windowMs,
-  max: RATE_LIMIT.qnaSubmit.max,
-  message: {
-    success: false,
-    message: "Juda tez-tez yuborilmoqda. 15 daqiqadan keyin qayta urinib ko'ring.",
-  },
 });
 
 app.use("/api/auth", authLimiter);
@@ -157,15 +170,68 @@ const startServer = async () => {
     await autoSeed();
 
     // Start server
-    app.listen(PORT, () => {
-      console.log(`\n🌸  Porla Backend — http://localhost:${PORT}`);
-      console.log(`📋  Health: http://localhost:${PORT}/api/health\n`);
-      startTelegramBot();
+    const server = app.listen(PORT, () => {
+      logger.info(`🌸  Porla Backend — http://localhost:${PORT}`);
+      logger.info(`📋  Health: http://localhost:${PORT}/api/health`);
+
+      // PM2 cluster rejimida polling konfliktidan saqlanish:
+      // Telegram botni faqat bitta instance ishga tushiradi (0 yoki yagona).
+      const pmId = process.env.NODE_APP_INSTANCE;
+      if (pmId === undefined || pmId === "0") {
+        startTelegramBot();
+      } else {
+        logger.info(`Telegram bot instance #${pmId} da o'tkazib yuborildi (polling konflikti oldini olish)`);
+      }
     });
+
+    setupGracefulShutdown(server);
   } catch (error) {
-    console.error("❌  Server startup xatosi:", error.message);
+    logger.error({ err: error }, "Server startup xatosi");
     process.exit(1);
   }
+};
+
+/**
+ * Graceful shutdown — SIGTERM/SIGINT'da HTTP serverni va Mongo ulanishini
+ * tartibli yopadi, ishlab turgan so'rovlar tugashini kutadi.
+ */
+const setupGracefulShutdown = (server) => {
+  const mongoose = require("mongoose");
+  let shuttingDown = false;
+
+  const shutdown = async (signal) => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    logger.info(`${signal} qabul qilindi — server tartibli yopilmoqda...`);
+
+    // Yangi so'rovlarni qabul qilishni to'xtatamiz
+    server.close(async () => {
+      try {
+        await mongoose.connection.close(false);
+        logger.info("MongoDB ulanishi yopildi. Xayr 🌸");
+        process.exit(0);
+      } catch (err) {
+        logger.error({ err }, "Shutdown paytida xato");
+        process.exit(1);
+      }
+    });
+
+    // Majburiy timeout — 10s ichida yopilmasa, force exit
+    setTimeout(() => {
+      logger.error("Tartibli shutdown vaqti tugadi, majburan yopilmoqda");
+      process.exit(1);
+    }, 10000).unref();
+  };
+
+  ["SIGTERM", "SIGINT"].forEach((sig) => process.on(sig, () => shutdown(sig)));
+
+  process.on("unhandledRejection", (reason) => {
+    logger.error({ err: reason }, "Unhandled Promise Rejection");
+  });
+  process.on("uncaughtException", (err) => {
+    logger.error({ err }, "Uncaught Exception");
+    shutdown("uncaughtException");
+  });
 };
 
 // Start server if this is the main module

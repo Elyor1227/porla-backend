@@ -3,11 +3,12 @@
  */
 
 const sendToken = (res, user, status = 200, message = "OK", additionalData = {}) => {
-  const { signToken } = require("./jwt");
+  const { signToken, signRefreshToken } = require("./jwt");
   return res.status(status).json({
     success: true,
     message,
     token: signToken(user._id),
+    refreshToken: signRefreshToken(user._id),
     user: user.toPublicJSON(),
     ...additionalData,
   });

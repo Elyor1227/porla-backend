@@ -57,4 +57,6 @@ const cycleSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+cycleSchema.index({ userId: 1, startDate: -1 });
+
 module.exports = mongoose.model("Cycle", cycleSchema);

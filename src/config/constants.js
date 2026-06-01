@@ -3,17 +3,34 @@
  * Centralized constants for the application
  */
 
-const JWT_SECRET = process.env.JWT_SECRET || "porla_dev_secret_change_me";
+// Maxfiy kalitlar faqat env'dan olinadi (fallback yo'q — validateEnv startupda tekshiradi)
+const JWT_SECRET = process.env.JWT_SECRET;
 const JWT_EXPIRES = process.env.JWT_EXPIRES || "30d";
-const ADMIN_KEY = process.env.ADMIN_KEY || "porla_admin_2024";
+const JWT_REFRESH_EXPIRES = process.env.JWT_REFRESH_EXPIRES || "90d";
+const ADMIN_KEY = process.env.ADMIN_KEY;
 const PORT = process.env.PORT || 5000;
 /** To'liq API manzili (masalan https://api.sayt.uz). Bo'sh bo'lsa videoUrl nisbiy /api/... bo'ladi. */
 const PUBLIC_API_URL = (process.env.PUBLIC_API_URL || "").replace(/\/$/, "");
 
+const toInt = (v, fallback) => {
+  const n = parseInt(v, 10);
+  return Number.isFinite(n) ? n : fallback;
+};
+
 const RATE_LIMIT = {
-  auth: { windowMs: 15 * 60 * 1000, max: 500 },
-  general: { windowMs: 15 * 60 * 1000, max: 1000 },
-  qnaSubmit: { windowMs: 15 * 60 * 1000, max: 1000 },
+  // Brute-force'ga qarshi: env bilan sozlanadi, default qiymatlar qattiqroq
+  auth: {
+    windowMs: toInt(process.env.RATE_LIMIT_AUTH_WINDOW_MS, 15 * 60 * 1000),
+    max: toInt(process.env.RATE_LIMIT_AUTH_MAX, 20),
+  },
+  general: {
+    windowMs: toInt(process.env.RATE_LIMIT_GENERAL_WINDOW_MS, 15 * 60 * 1000),
+    max: toInt(process.env.RATE_LIMIT_GENERAL_MAX, 1000),
+  },
+  qnaSubmit: {
+    windowMs: toInt(process.env.RATE_LIMIT_QNA_WINDOW_MS, 15 * 60 * 1000),
+    max: toInt(process.env.RATE_LIMIT_QNA_MAX, 30),
+  },
 };
 
 const MESSAGES = {
@@ -79,6 +96,7 @@ const TIP_CATEGORIES = ["sog'liq", "ovqatlanish", "jismoniy", "ruhiy", "sikl", "
 module.exports = {
   JWT_SECRET,
   JWT_EXPIRES,
+  JWT_REFRESH_EXPIRES,
   ADMIN_KEY,
   PORT,
   PUBLIC_API_URL,

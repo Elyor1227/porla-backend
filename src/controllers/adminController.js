@@ -4,7 +4,7 @@
 
 const adminService = require("../services/adminService");
 const courseAdminService = require("../services/courseAdminService");
-const { sendSuccess, sendError } = require("../utils/response");
+const { sendSuccess } = require("../utils/response");
 
 class AdminController {
   async getStats(req, res, next) {
@@ -20,24 +20,8 @@ class AdminController {
     try {
       const { name, email, password } = req.body;
       const user = await adminService.createAdminUser(name, email, password);
-      sendSuccess(
-        res,
-        {
-          message: "Yangi admin yaratildi",
-          user: user.toPublicJSON(),
-        },
-        201
-      );
+      sendSuccess(res, { message: "Yangi admin yaratildi", user: user.toPublicJSON() }, 201);
     } catch (err) {
-      if (
-        err.message.includes("talab qilinadi") ||
-        err.message.includes("kamida 6")
-      ) {
-        return sendError(res, err.message, 400);
-      }
-      if (err.message.includes("allaqachon")) {
-        return sendError(res, err.message, 409);
-      }
       next(err);
     }
   }
@@ -62,9 +46,6 @@ class AdminController {
       const result = await adminService.getUserById(id);
       sendSuccess(res, result);
     } catch (err) {
-      if (err.message.includes("topilmadi")) {
-        return sendError(res, err.message, 404);
-      }
       next(err);
     }
   }
@@ -74,17 +55,9 @@ class AdminController {
       const { id } = req.params;
       const { isPro, months } = req.body;
       const user = await adminService.setPro(id, isPro, months || 1);
-      const message = isPro
-        ? `Pro ${months || 1} oyga berildi`
-        : "Pro o'chirildi";
-      sendSuccess(res, {
-        message,
-        user: user.toPublicJSON(),
-      });
+      const message = isPro ? `Pro ${months || 1} oyga berildi` : "Pro o'chirildi";
+      sendSuccess(res, { message, user: user.toPublicJSON() });
     } catch (err) {
-      if (err.message.includes("topilmadi")) {
-        return sendError(res, err.message, 404);
-      }
       next(err);
     }
   }
@@ -95,14 +68,8 @@ class AdminController {
       const { isBlocked } = req.body;
       const user = await adminService.blockUser(id, isBlocked);
       const message = isBlocked ? "Bloklandi" : "Blokdan chiqarildi";
-      sendSuccess(res, {
-        message,
-        user,
-      });
+      sendSuccess(res, { message, user });
     } catch (err) {
-      if (err.message.includes("topilmadi")) {
-        return sendError(res, err.message, 404);
-      }
       next(err);
     }
   }
@@ -113,12 +80,6 @@ class AdminController {
       await adminService.deleteUser(id);
       sendSuccess(res, { message: "Foydalanuvchi o'chirildi" });
     } catch (err) {
-      if (err.message.includes("topilmadi")) {
-        return sendError(res, err.message, 404);
-      }
-      if (err.message.includes("Admin")) {
-        return sendError(res, err.message, 403);
-      }
       next(err);
     }
   }
@@ -130,9 +91,6 @@ class AdminController {
       await adminService.notifyUser(id, title, message, type);
       sendSuccess(res, { message: "Bildirishnoma yuborildi" });
     } catch (err) {
-      if (err.message.includes("kerak")) {
-        return sendError(res, err.message, 400);
-      }
       next(err);
     }
   }
@@ -140,19 +98,9 @@ class AdminController {
   async broadcastNotification(req, res, next) {
     try {
       const { title, message, type, onlyPro } = req.body;
-      const result = await adminService.broadcastNotification(
-        title,
-        message,
-        type,
-        onlyPro
-      );
-      sendSuccess(res, {
-        message: `${result.length} ta foydalanuvchiga yuborildi`,
-      });
+      const result = await adminService.broadcastNotification(title, message, type, onlyPro);
+      sendSuccess(res, { message: `${result.length} ta foydalanuvchiga yuborildi` });
     } catch (err) {
-      if (err.message.includes("kerak")) {
-        return sendError(res, err.message, 400);
-      }
       next(err);
     }
   }
@@ -169,8 +117,7 @@ class AdminController {
 
   async createCourse(req, res, next) {
     try {
-      const { title, description, icon, color, bgColor, isPro, order } =
-        req.body;
+      const { title, description, icon, color, bgColor, isPro, order } = req.body;
       const course = await courseAdminService.createCourse(
         title,
         description,
@@ -180,18 +127,8 @@ class AdminController {
         isPro,
         order
       );
-      sendSuccess(
-        res,
-        {
-          message: "Kurs qo'shildi",
-          course,
-        },
-        201
-      );
+      sendSuccess(res, { message: "Kurs qo'shildi", course }, 201);
     } catch (err) {
-      if (err.message.includes("majburiy")) {
-        return sendError(res, err.message, 400);
-      }
       next(err);
     }
   }
@@ -200,14 +137,8 @@ class AdminController {
     try {
       const { id } = req.params;
       const course = await courseAdminService.updateCourse(id, req.body);
-      sendSuccess(res, {
-        message: "Kurs yangilandi",
-        course,
-      });
+      sendSuccess(res, { message: "Kurs yangilandi", course });
     } catch (err) {
-      if (err.message.includes("topilmadi")) {
-        return sendError(res, err.message, 404);
-      }
       next(err);
     }
   }
@@ -218,9 +149,6 @@ class AdminController {
       await courseAdminService.deleteCourse(id);
       sendSuccess(res, { message: "Kurs va darslari o'chirildi" });
     } catch (err) {
-      if (err.message.includes("topilmadi")) {
-        return sendError(res, err.message, 404);
-      }
       next(err);
     }
   }
@@ -250,26 +178,10 @@ class AdminController {
         order,
         isPro,
         req.file?.filename || "",
-        req.file ? (req.lessonVideoStorage || "local") : "local"
+        req.file ? req.lessonVideoStorage || "local" : "local"
       );
-      sendSuccess(
-        res,
-        {
-          message: "Dars qo'shildi",
-          lesson,
-        },
-        201
-      );
+      sendSuccess(res, { message: "Dars qo'shildi", lesson }, 201);
     } catch (err) {
-      if (err.message.includes("majburiy")) {
-        return sendError(res, err.message, 400);
-      }
-      if (err.message.includes("topilmadi")) {
-        return sendError(res, err.message, 404);
-      }
-      if (err.message.includes("video fayllar")) {
-        return sendError(res, err.message, 400);
-      }
       next(err);
     }
   }
@@ -290,17 +202,8 @@ class AdminController {
         body.videoStorage = req.lessonVideoStorage || "local";
       }
       const lesson = await courseAdminService.updateLesson(courseId, id, body);
-      sendSuccess(res, {
-        message: "Dars yangilandi",
-        lesson,
-      });
+      sendSuccess(res, { message: "Dars yangilandi", lesson });
     } catch (err) {
-      if (err.message.includes("topilmadi")) {
-        return sendError(res, err.message, 404);
-      }
-      if (err.message.includes("video fayllar")) {
-        return sendError(res, err.message, 400);
-      }
       next(err);
     }
   }
@@ -311,9 +214,6 @@ class AdminController {
       await courseAdminService.deleteLesson(courseId, id);
       sendSuccess(res, { message: "Dars o'chirildi" });
     } catch (err) {
-      if (err.message.includes("topilmadi")) {
-        return sendError(res, err.message, 404);
-      }
       next(err);
     }
   }
@@ -327,7 +227,8 @@ class AdminController {
         lessons: result.lessons,
       });
     } catch (err) {
-      if (err.message.includes("allaqon")) {
+      // Ma'lumotlar allaqachon mavjud bo'lsa — bu xato emas
+      if (err.code === "ALREADY_SEEDED") {
         return sendSuccess(res, { message: "Ma'lumotlar allaqon mavjud" });
       }
       next(err);

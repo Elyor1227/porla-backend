@@ -4,7 +4,9 @@
   "description": "Porla — Women's Health Education Platform Backend (Production-Ready)",
   "main": "src/index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
     "start": "node src/index.js",
     "dev": "nodemon src/index.js"
   },
@@ -25,6 +27,11 @@
     "multer": "^1.4.5-lts.2",
     "node-telegram-bot-api": "^0.67.0",
     "nodemon": "^3.1.14",
+    "pino": "^10.3.1",
+    "pino-http": "^11.0.0",
     "swagger-ui-express": "^5.0.1"
+  },
+  "devDependencies": {
+    "jest": "^30.4.2"
   }
 }

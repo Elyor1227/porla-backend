@@ -3,6 +3,7 @@
  */
 
 const DailyTip = require("../models/DailyTip");
+const AppError = require("../utils/AppError");
 
 class DailyTipService {
   async getTodayTip() {
@@ -95,11 +96,11 @@ class DailyTipService {
 
   async createTip(content, category, emoji, publishDate, isActive, createdBy) {
     if (!content || content.trim().length < 5) {
-      throw new Error("Maslahat matni kamina 5 ta belgi");
+      throw AppError.badRequest("Maslahat matni kamida 5 ta belgi", "CONTENT_MIN");
     }
 
     if (publishDate && !/^\d{4}-\d{2}-\d{2}$/.test(publishDate)) {
-      throw new Error("publishDate formati: YYYY-MM-DD");
+      throw AppError.badRequest("publishDate formati: YYYY-MM-DD", "INVALID_DATE_FORMAT");
     }
 
     const tip = await DailyTip.create({
@@ -129,7 +130,7 @@ class DailyTipService {
       !/^\d{4}-\d{2}-\d{2}$/.test(update.publishDate) &&
       update.publishDate !== ""
     ) {
-      throw new Error("publishDate formati: YYYY-MM-DD");
+      throw AppError.badRequest("publishDate formati: YYYY-MM-DD", "INVALID_DATE_FORMAT");
     }
 
     const tip = await DailyTip.findByIdAndUpdate(id, update, {
@@ -138,7 +139,7 @@ class DailyTipService {
     });
 
     if (!tip) {
-      throw new Error("Maslahat topilmadi");
+      throw AppError.notFound("Maslahat topilmadi", "TIP_NOT_FOUND");
     }
 
     return tip;
@@ -148,7 +149,7 @@ class DailyTipService {
     const tip = await DailyTip.findByIdAndDelete(id);
 
     if (!tip) {
-      throw new Error("Maslahat topilmadi");
+      throw AppError.notFound("Maslahat topilmadi", "TIP_NOT_FOUND");
     }
 
     return tip;

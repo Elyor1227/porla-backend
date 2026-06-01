@@ -6,6 +6,7 @@
 const User = require("../models/User");
 const Notification = require("../models/Notification");
 const { MESSAGES } = require("../config/constants");
+const AppError = require("../utils/AppError");
 
 function normalizeEmail(email) {
   return String(email || "")
@@ -41,21 +42,21 @@ class AuthService {
   async register(name, email, password, phone) {
     // Validate input
     if (!name || !email || !password || !phone) {
-      throw new Error(MESSAGES.REQUIRED_FIELDS);
+      throw AppError.badRequest(MESSAGES.REQUIRED_FIELDS, "REQUIRED_FIELDS");
     }
 
     if (password.length < 6) {
-      throw new Error(MESSAGES.PASSWORD_MIN);
+      throw AppError.badRequest(MESSAGES.PASSWORD_MIN, "PASSWORD_MIN");
     }
 
     const emailNorm = normalizeEmail(email);
     if (!emailNorm) {
-      throw new Error(MESSAGES.REQUIRED_FIELDS);
+      throw AppError.badRequest(MESSAGES.REQUIRED_FIELDS, "REQUIRED_FIELDS");
     }
 
     const phoneNorm = normalizePhone(phone);
     if (!phoneNorm) {
-      throw new Error(MESSAGES.PHONE_INVALID);
+      throw AppError.badRequest(MESSAGES.PHONE_INVALID, "PHONE_INVALID");
     }
 
     // Check if email exists
@@ -63,12 +64,12 @@ class AuthService {
       email: emailNorm,
     });
     if (existingUser) {
-      throw new Error(MESSAGES.EMAIL_EXISTS);
+      throw AppError.conflict(MESSAGES.EMAIL_EXISTS, "EMAIL_EXISTS");
     }
 
     const existingPhone = await User.findOne({ phone: phoneNorm });
     if (existingPhone) {
-      throw new Error(MESSAGES.PHONE_EXISTS);
+      throw AppError.conflict(MESSAGES.PHONE_EXISTS, "PHONE_EXISTS");
     }
 
     // Create user
@@ -93,24 +94,30 @@ class AuthService {
   async login({ email, phone, login, password }) {
     // Validate input
     if (!password) {
-      throw new Error("Email yoki telefon raqam va parol talab qilinadi");
+      throw AppError.badRequest(
+        "Email yoki telefon raqam va parol talab qilinadi",
+        "REQUIRED_FIELDS"
+      );
     }
 
     const query = buildLoginQuery({ email, phone, login });
     if (!query) {
-      throw new Error("Email yoki telefon raqam va parol talab qilinadi");
+      throw AppError.badRequest(
+        "Email yoki telefon raqam va parol talab qilinadi",
+        "REQUIRED_FIELDS"
+      );
     }
 
     // Find user and include password
     const user = await User.findOne(query).select("+password");
 
     if (!user || !(await user.comparePassword(password))) {
-      throw new Error(MESSAGES.INVALID_CREDENTIALS);
+      throw AppError.unauthorized(MESSAGES.INVALID_CREDENTIALS, "INVALID_CREDENTIALS");
     }
 
     // Check if blocked
     if (user.isBlocked) {
-      throw new Error(MESSAGES.USER_BLOCKED);
+      throw AppError.forbidden(MESSAGES.USER_BLOCKED, "USER_BLOCKED");
     }
 
     // Update last login
@@ -134,7 +141,7 @@ class AuthService {
     });
 
     if (!user) {
-      throw new Error(MESSAGES.USER_NOT_FOUND);
+      throw AppError.notFound(MESSAGES.USER_NOT_FOUND, "USER_NOT_FOUND");
     }
 
     return user;
@@ -143,12 +150,12 @@ class AuthService {
   async updatePhone(userId, phone) {
     const phoneNorm = normalizePhone(phone);
     if (!phoneNorm) {
-      throw new Error(MESSAGES.PHONE_INVALID);
+      throw AppError.badRequest(MESSAGES.PHONE_INVALID, "PHONE_INVALID");
     }
 
     const existing = await User.findOne({ phone: phoneNorm, _id: { $ne: userId } });
     if (existing) {
-      throw new Error(MESSAGES.PHONE_EXISTS);
+      throw AppError.conflict(MESSAGES.PHONE_EXISTS, "PHONE_EXISTS");
     }
 
     const user = await User.findByIdAndUpdate(
@@ -158,7 +165,7 @@ class AuthService {
     );
 
     if (!user) {
-      throw new Error(MESSAGES.USER_NOT_FOUND);
+      throw AppError.notFound(MESSAGES.USER_NOT_FOUND, "USER_NOT_FOUND");
     }
 
     return user;
@@ -167,22 +174,25 @@ class AuthService {
   async changePassword(userId, currentPassword, newPassword) {
     // Validate input
     if (!currentPassword || !newPassword) {
-      throw new Error("Joriy va yangi parol talab qilinadi");
+      throw AppError.badRequest(
+        "Joriy va yangi parol talab qilinadi",
+        "REQUIRED_FIELDS"
+      );
     }
 
     if (newPassword.length < 6) {
-      throw new Error(MESSAGES.PASSWORD_MIN);
+      throw AppError.badRequest(MESSAGES.PASSWORD_MIN, "PASSWORD_MIN");
     }
 
     // Get user with password
     const user = await User.findById(userId).select("+password");
     if (!user) {
-      throw new Error(MESSAGES.USER_NOT_FOUND);
+      throw AppError.notFound(MESSAGES.USER_NOT_FOUND, "USER_NOT_FOUND");
     }
 
     // Verify current password
     if (!(await user.comparePassword(currentPassword))) {
-      throw new Error(MESSAGES.PASSWORD_INVALID);
+      throw AppError.badRequest(MESSAGES.PASSWORD_INVALID, "PASSWORD_INVALID");
     }
 
     // Update password

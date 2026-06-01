@@ -3,7 +3,7 @@
  */
 
 const trackerService = require("../services/trackerService");
-const { sendSuccess, sendError } = require("../utils/response");
+const { sendSuccess } = require("../utils/response");
 
 class TrackerController {
   async getTodayData(req, res, next) {
@@ -33,14 +33,8 @@ class TrackerController {
         cycleLength,
         notes
       );
-      sendSuccess(res, {
-        message: "Tsikl saqlandi",
-        cycle,
-      }, 201);
+      sendSuccess(res, { message: "Tsikl saqlandi", cycle }, 201);
     } catch (err) {
-      if (err.message.includes("majburiy")) {
-        return sendError(res, err.message, 400);
-      }
       next(err);
     }
   }
@@ -49,14 +43,8 @@ class TrackerController {
     try {
       const { id } = req.params;
       const cycle = await trackerService.updateCycle(id, req.user._id, req.body);
-      sendSuccess(res, {
-        message: "Sikl yangilandi",
-        cycle,
-      });
+      sendSuccess(res, { message: "Tsikl yangilandi", cycle });
     } catch (err) {
-      if (err.message.includes("topilmadi")) {
-        return sendError(res, err.message, 404);
-      }
       next(err);
     }
   }
@@ -74,12 +62,6 @@ class TrackerController {
       );
       sendSuccess(res, { message: "Belgilar saqlandi" });
     } catch (err) {
-      if (err.message.includes("majburiy")) {
-        return sendError(res, err.message, 400);
-      }
-      if (err.message.includes("boshlang")) {
-        return sendError(res, err.message, 404);
-      }
       next(err);
     }
   }

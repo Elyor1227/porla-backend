@@ -6,6 +6,8 @@
 const Qna = require("../models/Qna");
 const User = require("../models/User");
 const Notification = require("../models/Notification");
+const { safeSearchRegex } = require("../utils/sanitize");
+const AppError = require("../utils/AppError");
 class QnAService {
   // Admin: delete all Q&A and notifications
   async clearAllQnaAndNotifications() {
@@ -37,7 +39,7 @@ class QnAService {
   }
   async submitQuestion(question, topic, askedName, contact, askedIp, askedBy) {
     if (!question || typeof question !== "string" || question.trim().length < 5) {
-      throw new Error("Savol kamina 5 ta belgi bo'lishi kerak");
+      throw AppError.badRequest("Savol kamida 5 ta belgi bo'lishi kerak", "QUESTION_MIN");
     }
 
     const doc = await Qna.create({
@@ -56,10 +58,10 @@ class QnAService {
     const query = { isPublished: true, status: "answered" };
 
     if (search) {
-      query.question = { $regex: search, $options: "i" };
+      query.question = { $regex: safeSearchRegex(search), $options: "i" };
     }
     if (topic) {
-      query.topic = { $regex: `^${topic}$`, $options: "i" };
+      query.topic = { $regex: `^${safeSearchRegex(topic)}$`, $options: "i" };
     }
 
     const [items, total] = await Promise.all([
@@ -90,7 +92,10 @@ class QnAService {
     }).select("question answer topic answeredAt updatedAt");
 
     if (!item) {
-      throw new Error("Savol topilmadi yoki hali nashr etilmagan");
+      throw AppError.notFound(
+        "Savol topilmadi yoki hali nashr etilmagan",
+        "QUESTION_NOT_FOUND"
+      );
     }
 
     return item;
@@ -108,7 +113,7 @@ class QnAService {
       query.isPublished = false;
     }
     if (search) {
-      query.question = { $regex: search, $options: "i" };
+      query.question = { $regex: safeSearchRegex(search), $options: "i" };
     }
 
     const [items, total] = await Promise.all([
@@ -139,7 +144,7 @@ class QnAService {
       .populate("answeredBy", "name email");
 
     if (!item) {
-      throw new Error("Savol topilmadi");
+      throw AppError.notFound("Savol topilmadi", "QUESTION_NOT_FOUND");
     }
 
     return item;
@@ -147,12 +152,12 @@ class QnAService {
 
   async answerQuestion(id, answer, isPublished, answeredBy) {
     if (!answer || answer.trim().length < 3) {
-      throw new Error("Javob kamina 3 ta belgi bo'lishi kerak");
+      throw AppError.badRequest("Javob kamida 3 ta belgi bo'lishi kerak", "ANSWER_MIN");
     }
 
     const item = await Qna.findById(id);
     if (!item) {
-      throw new Error("Savol topilmadi");
+      throw AppError.notFound("Savol topilmadi", "QUESTION_NOT_FOUND");
     }
 
     item.answer = answer.trim();
@@ -179,9 +184,35 @@ class QnAService {
     return item;
   }
 
+  async deleteQuestion(id) {
+    const item = await Qna.findByIdAndDelete(id);
+
+    if (!item) {
+      throw AppError.notFound("Savol topilmadi", "QUESTION_NOT_FOUND");
+    }
+
+    // Delete all notifications related to this question
+    await Notification.deleteMany({
+      message: { $regex: safeSearchRegex(item.question, 2000), $options: "i" },
+    });
+
+    return item;
+  }
+
+  async notifyAllUsersAboutQna(qna) {
+    const users = await User.find({}, "_id");
+    const notifications = users.map((u) => ({
+      userId: u._id,
+      title: "Foydali savol-javob qo'shildi",
+      message: `Savol: ${qna.question}\nJavob: ${qna.answer}`,
+      type: "info",
+    }));
+    await Notification.insertMany(notifications);
+  }
+
   async publishQuestion(id, isPublished) {
     if (typeof isPublished !== "boolean") {
-      throw new Error("isPublished boolean bo'lishi kerak");
+      throw AppError.badRequest("isPublished boolean bo'lishi kerak", "INVALID_INPUT");
     }
 
     const item = await Qna.findByIdAndUpdate(
@@ -191,58 +222,16 @@ class QnAService {
     );
 
     if (!item) {
-      throw new Error("Savol topilmadi");
+      throw AppError.notFound("Savol topilmadi", "QUESTION_NOT_FOUND");
+    }
+
+    // isPublished true bo'lsa, barcha foydalanuvchilarga bildirishnoma
+    if (isPublished) {
+      await this.notifyAllUsersAboutQna(item);
     }
 
     return item;
   }
-
-  async deleteQuestion(id) {
-    const item = await Qna.findByIdAndDelete(id);
-
-    if (!item) {
-      throw new Error("Savol topilmadi");
-    }
-
-    // Delete all notifications related to this question
-    await Notification.deleteMany({
-      message: { $regex: item.question, $options: "i" }
-    });
-
-    return item;
-  }
-  async notifyAllUsersAboutQna(qna) {
-  const users = await User.find({}, "_id");
-  const notifications = users.map(u => ({
-    userId: u._id,
-    title: "Foydali savol-javob qo'shildi",
-    message: `Savol: ${qna.question}\nJavob: ${qna.answer}`,
-    type: "info",
-  }));
-  await Notification.insertMany(notifications);
-}
-async publishQuestion(id, isPublished) {
-  if (typeof isPublished !== "boolean") {
-    throw new Error("isPublished boolean bo'lishi kerak");
-  }
-
-  const item = await Qna.findByIdAndUpdate(
-    id,
-    { isPublished },
-    { returnDocument: "after" }
-  );
-
-  if (!item) {
-    throw new Error("Savol topilmadi");
-  }
-
-  // Yangi: isPublished true bo‘lsa, barcha userga notification
-  if (isPublished) {
-    await this.notifyAllUsersAboutQna(item);
-  }
-
-  return item;
-}
 }
 
 module.exports = new QnAService();

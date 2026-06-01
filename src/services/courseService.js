@@ -7,45 +7,52 @@ const fs = require("fs");
 const path = require("path");
 const Course = require("../models/Course");
 const Lesson = require("../models/Lesson");
+const LessonProgress = require("../models/LessonProgress");
 const Notification = require("../models/Notification");
 const { MESSAGES } = require("../config/constants");
 const { toClientVideoUrl } = require("../utils/lessonVideo");
 const { getVideoPath } = require("../utils/videoUpload");
 const { streamVideoToResponse } = require("../utils/videoS3Storage");
+const AppError = require("../utils/AppError");
+const cache = require("../utils/cache");
+
+const COURSES_CACHE_TTL = 120; // sekund
 
 class CourseService {
   async getAllCourses(user) {
-    const courses = await Course.find({ isActive: true }).sort("order");
+    // Foydalanuvchidan mustaqil baza ro'yxat (kurslar + dars soni) cache'lanadi.
+    // isLocked har bir foydalanuvchi uchun alohida hisoblanadi.
+    const base = await cache.wrap("courses:base", COURSES_CACHE_TTL, async () => {
+      const courses = await Course.find({ isActive: true }).sort("order");
 
-    const result = await Promise.all(
-      courses.map(async (c) => {
-        const lessonCount = await Lesson.countDocuments({
-          courseId: c._id,
-          isActive: true,
-        });
-        return {
-          ...c.toObject(),
-          lessonCount,
-          isLocked: c.isPro && !user.isPro && !user.isAdmin,
-        };
-      })
-    );
+      // N+1 o'rniga: bitta aggregation bilan barcha kurslar uchun dars sonini olamiz
+      const counts = await Lesson.aggregate([
+        { $match: { isActive: true } },
+        { $group: { _id: "$courseId", count: { $sum: 1 } } },
+      ]);
+      const countMap = new Map(counts.map((c) => [String(c._id), c.count]));
 
-    return result;
+      return courses.map((c) => ({
+        ...c.toObject(),
+        lessonCount: countMap.get(String(c._id)) || 0,
+      }));
+    });
+
+    return base.map((c) => ({
+      ...c,
+      isLocked: c.isPro && !user.isPro && !user.isAdmin,
+    }));
   }
 
   async getCourseById(courseId, user) {
     const course = await Course.findById(courseId);
     if (!course) {
-      throw new Error(MESSAGES.COURSE_NOT_FOUND);
+      throw AppError.notFound(MESSAGES.COURSE_NOT_FOUND, "COURSE_NOT_FOUND");
     }
 
     // Check pro access
     if (course.isPro && !user.isPro && !user.isAdmin) {
-      const error = new Error(MESSAGES.COURSE_LOCKED);
-      error.isPro = true;
-      error.statusCode = 403;
-      throw error;
+      throw AppError.forbidden(MESSAGES.COURSE_LOCKED, "COURSE_LOCKED", { isPro: true });
     }
 
     // Get lessons with progress
@@ -81,7 +88,7 @@ class CourseService {
   async getLessonById(courseId, lessonId, user) {
     const course = await Course.findById(courseId);
     if (!course) {
-      throw new Error(MESSAGES.COURSE_NOT_FOUND);
+      throw AppError.notFound(MESSAGES.COURSE_NOT_FOUND, "COURSE_NOT_FOUND");
     }
 
     const lesson = await Lesson.findOne({
@@ -91,7 +98,7 @@ class CourseService {
     });
 
     if (!lesson) {
-      throw new Error(MESSAGES.LESSON_NOT_FOUND);
+      throw AppError.notFound(MESSAGES.LESSON_NOT_FOUND, "LESSON_NOT_FOUND");
     }
 
     // Get all lessons for navigation
@@ -107,10 +114,7 @@ class CourseService {
 
     // Pro kurs: 1-dars bepul; qolganlari Pro kerak. Bepul kursda barcha darslar ochiq.
     if (course.isPro && idx > 0 && !isUserPro) {
-      const error = new Error(MESSAGES.COURSE_LOCKED);
-      error.isPro = true;
-      error.statusCode = 403;
-      throw error;
+      throw AppError.forbidden(MESSAGES.COURSE_LOCKED, "COURSE_LOCKED", { isPro: true });
     }
 
     const completedIds = user.completedLessons.map((id) => id.toString());
@@ -161,9 +165,7 @@ class CourseService {
   async assertLessonVideoAccess(courseId, lessonId, user) {
     const course = await Course.findById(courseId);
     if (!course) {
-      const err = new Error(MESSAGES.COURSE_NOT_FOUND);
-      err.statusCode = 404;
-      throw err;
+      throw AppError.notFound(MESSAGES.COURSE_NOT_FOUND, "COURSE_NOT_FOUND");
     }
 
     const lesson = await Lesson.findOne({
@@ -173,9 +175,7 @@ class CourseService {
     });
 
     if (!lesson) {
-      const err = new Error(MESSAGES.LESSON_NOT_FOUND);
-      err.statusCode = 404;
-      throw err;
+      throw AppError.notFound(MESSAGES.LESSON_NOT_FOUND, "LESSON_NOT_FOUND");
     }
 
     const allLessons = await Lesson.find({
@@ -189,10 +189,7 @@ class CourseService {
     const isUserPro = user.isPro || user.isAdmin;
 
     if (course.isPro && idx > 0 && !isUserPro) {
-      const error = new Error(MESSAGES.COURSE_LOCKED);
-      error.isPro = true;
-      error.statusCode = 403;
-      throw error;
+      throw AppError.forbidden(MESSAGES.COURSE_LOCKED, "COURSE_LOCKED", { isPro: true });
     }
 
     return lesson;
@@ -217,9 +214,7 @@ class CourseService {
     const lesson = await this.assertLessonVideoAccess(courseId, lessonId, req.user);
 
     if (!lesson.videoFile) {
-      const err = new Error("Bu dars uchun yuklangan video fayl yo'q");
-      err.statusCode = 404;
-      throw err;
+      throw AppError.notFound("Bu dars uchun yuklangan video fayl yo'q", "VIDEO_NOT_FOUND");
     }
 
     if ((lesson.videoStorage || "local") === "s3") {
@@ -231,9 +226,7 @@ class CourseService {
 
     const filePath = getVideoPath(lesson.videoFile);
     if (!filePath || !fs.existsSync(filePath)) {
-      const err = new Error("Video fayl serverda topilmadi");
-      err.statusCode = 404;
-      throw err;
+      throw AppError.notFound("Video fayl serverda topilmadi", "VIDEO_NOT_FOUND");
     }
 
     const stat = fs.statSync(filePath);
@@ -295,7 +288,7 @@ class CourseService {
   async completeLesson(courseId, lessonId, user) {
     const course = await Course.findById(courseId);
     if (!course) {
-      throw new Error(MESSAGES.COURSE_NOT_FOUND);
+      throw AppError.notFound(MESSAGES.COURSE_NOT_FOUND, "COURSE_NOT_FOUND");
     }
 
     const lesson = await Lesson.findOne({
@@ -305,7 +298,7 @@ class CourseService {
     });
 
     if (!lesson) {
-      throw new Error(MESSAGES.LESSON_NOT_FOUND);
+      throw AppError.notFound(MESSAGES.LESSON_NOT_FOUND, "LESSON_NOT_FOUND");
     }
 
     // Get all lessons for navigation and pro check
@@ -320,9 +313,7 @@ class CourseService {
     const isUserPro = user.isPro || user.isAdmin;
 
     if (course.isPro && idx > 0 && !isUserPro) {
-      const error = new Error(MESSAGES.COURSE_LOCKED);
-      error.statusCode = 403;
-      throw error;
+      throw AppError.forbidden(MESSAGES.COURSE_LOCKED, "COURSE_LOCKED", { isPro: true });
     }
 
     // Mark as completed
@@ -333,6 +324,14 @@ class CourseService {
     if (!already) {
       user.completedLessons.push(lesson._id);
       await user.save({ validateBeforeSave: false });
+
+      // Dual-write: alohida LessonProgress collection'ga ham yozamiz
+      // (kelajakda User.completedLessons massivini almashtirish uchun)
+      await LessonProgress.updateOne(
+        { userId: user._id, lessonId: lesson._id },
+        { $setOnInsert: { courseId, completedAt: new Date() } },
+        { upsert: true }
+      ).catch(() => {});
 
       // Create achievement notification every 5 lessons
       const count = user.completedLessons.length;

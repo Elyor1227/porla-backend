@@ -3,7 +3,7 @@
  */
 
 const courseService = require("../services/courseService");
-const { sendSuccess, sendError } = require("../utils/response");
+const { sendSuccess } = require("../utils/response");
 
 class CourseController {
   async getAllCourses(req, res, next) {
@@ -21,12 +21,6 @@ class CourseController {
       const result = await courseService.getCourseById(id, req.user);
       sendSuccess(res, result);
     } catch (err) {
-      // if (err.isPro) {
-      //   return sendError(res, err.message, 403, { isPro: true });
-      // }
-      if (err.message.includes("topilmadi")) {
-        return sendError(res, err.message, 404);
-      }
       next(err);
     }
   }
@@ -37,12 +31,6 @@ class CourseController {
       const result = await courseService.getLessonById(courseId, lessonId, req.user);
       sendSuccess(res, result);
     } catch (err) {
-      if (err.isPro) {
-        return sendError(res, err.message, 403, { isPro: true });
-      }
-      if (err.message.includes("topilmadi")) {
-        return sendError(res, err.message, 404);
-      }
       next(err);
     }
   }
@@ -51,12 +39,6 @@ class CourseController {
     try {
       await courseService.sendLessonVideo(req, res);
     } catch (err) {
-      if (err.isPro) {
-        return sendError(res, err.message, 403, { isPro: true });
-      }
-      if (err.statusCode === 404) {
-        return sendError(res, err.message, 404);
-      }
       next(err);
     }
   }
@@ -64,11 +46,7 @@ class CourseController {
   async completeLesson(req, res, next) {
     try {
       const { courseId, lessonId } = req.params;
-      const result = await courseService.completeLesson(
-        courseId,
-        lessonId,
-        req.user
-      );
+      const result = await courseService.completeLesson(courseId, lessonId, req.user);
 
       const message = result.courseCompleted
         ? "Kurs tugallandi! 🎓"
@@ -81,12 +59,6 @@ class CourseController {
         nextLesson: result.nextLesson,
       });
     } catch (err) {
-      if (err.message.includes("Pro")) {
-        return sendError(res, err.message, 403);
-      }
-      if (err.message.includes("topilmadi")) {
-        return sendError(res, err.message, 404);
-      }
       next(err);
     }
   }
